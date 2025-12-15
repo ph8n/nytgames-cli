@@ -88,7 +88,7 @@ pub fn run(
         win.clear();
         win.hideCursor();
 
-        const title = "nytg-cli";
+        const title = "nytgames-cli";
         const hint = "↑/↓ j/k  •  ←/→ h/l  •  Enter/Space  •  Ctrl+C";
 
         var streak_today_buf: [32]u8 = undefined;
