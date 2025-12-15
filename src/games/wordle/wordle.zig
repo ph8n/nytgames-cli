@@ -4,6 +4,7 @@ const vaxis = @import("vaxis");
 const api_client = @import("../../api/client.zig");
 const colors = @import("../../ui/colors.zig");
 const app_event = @import("../../ui/event.zig");
+const ui_keys = @import("../../ui/keys.zig");
 const date = @import("../../utils/date.zig");
 const storage_db = @import("../../storage/db.zig");
 const storage_stats = @import("../../storage/stats.zig");
@@ -75,19 +76,18 @@ pub fn run(
                 try vx.resize(allocator, tty.writer(), ws);
             },
             .key_press => |k| {
-                if (k.matches(vaxis.Key.escape, .{}) or k.matchShortcut('c', .{ .ctrl = true })) {
-                    return if (direct_launch) .quit else .back_to_menu;
-                }
+                if (ui_keys.isCtrlC(k)) return .quit;
+                if (k.matches(vaxis.Key.escape, .{}) or k.matches('q', .{})) return .back_to_menu;
 
                 if (state.phase == .finished) {
-                    if (k.matches(vaxis.Key.enter, .{}) or k.matches(' ', .{})) {
+                    if (isEnterKey(k) or k.matches(' ', .{})) {
                         if (mode == .unlimited) {
                             status_msg.clear();
                             state = .{};
                             state.solution = try pickRandomSolution();
                             continue;
                         }
-                        return if (direct_launch) .quit else .back_to_menu;
+                        return .back_to_menu;
                     }
                     continue;
                 }
@@ -98,7 +98,7 @@ pub fn run(
                     continue;
                 }
 
-                if (k.matches(vaxis.Key.enter, .{})) {
+                if (isEnterKey(k)) {
                     status_msg.clear();
                     if (state.col != 5) {
                         status_msg.set("Not enough letters");
@@ -163,6 +163,10 @@ pub fn run(
             },
         }
     }
+}
+
+fn isEnterKey(k: vaxis.Key) bool {
+    return k.matches(vaxis.Key.enter, .{}) or k.matches('\n', .{}) or k.matches('\r', .{});
 }
 
 const StatusMessage = struct {
@@ -364,9 +368,10 @@ fn render(vx: *vaxis.Vaxis, state: *GameState, msg: *StatusMessage, direct_launc
     win.clear();
     win.hideCursor();
 
+    _ = direct_launch;
     const title = switch (mode) {
-        .daily => if (direct_launch) "Wordle  (Esc to quit)" else "Wordle  (Esc to menu)",
-        .unlimited => if (direct_launch) "Wordle Unlimited  (Esc to quit)" else "Wordle Unlimited  (Esc to menu)",
+        .daily => "Wordle  (q/Esc: menu  Ctrl+C: quit)",
+        .unlimited => "Wordle Unlimited  (q/Esc: menu  Ctrl+C: quit)",
     };
 
     const tile_w: u16 = 5;
@@ -557,7 +562,8 @@ fn runAlreadyPlayedScreen(
         switch (loop.nextEvent()) {
             .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
             .key_press => |k| {
-                if (k.matches(vaxis.Key.escape, .{}) or k.matches(vaxis.Key.enter, .{}) or k.matches(' ', .{})) {
+                if (ui_keys.isCtrlC(k)) return .quit;
+                if (k.matches(vaxis.Key.escape, .{}) or isEnterKey(k) or k.matches(' ', .{})) {
                     return if (direct_launch) .quit else .back_to_menu;
                 }
             },

@@ -3,6 +3,7 @@ const vaxis = @import("vaxis");
 
 const app_event = @import("ui/event.zig");
 const menu = @import("ui/menu.zig");
+const stats = @import("ui/stats.zig");
 const wordle = @import("games/wordle/wordle.zig");
 const storage_db = @import("storage/db.zig");
 
@@ -60,17 +61,44 @@ pub fn main() !void {
 
     if (direct_wordle) {
         const mode: wordle.Mode = if (wordle_unlimited) .unlimited else .daily;
-        _ = try wordle.run(allocator, &tty, &vx, &loop, &storage, mode, true);
-        return;
+        switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, mode, true)) {
+            .quit => {
+                try flashQuit(&tty, &vx);
+                return;
+            },
+            .back_to_menu => {},
+        }
     }
 
     while (true) {
-        switch (try menu.run(allocator, &tty, &vx, &loop)) {
-            .quit => return,
+        switch (try menu.run(allocator, &tty, &vx, &loop, &storage)) {
+            .quit => {
+                try flashQuit(&tty, &vx);
+                return;
+            },
+            .stats => switch (try stats.run(allocator, &tty, &vx, &loop, &storage)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
             .wordle => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .daily, false)) {
                 .back_to_menu => continue,
-                .quit => return,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
             },
         }
     }
+}
+
+fn flashQuit(tty: *vaxis.Tty, vx: *vaxis.Vaxis) !void {
+    const win = vx.window();
+    win.clear();
+    win.hideCursor();
+    _ = win.print(&.{.{ .text = "Saving..." }}, .{ .row_offset = 0, .col_offset = 2, .wrap = .none });
+    try vx.render(tty.writer());
+    std.Thread.sleep(120 * std.time.ns_per_ms);
 }
