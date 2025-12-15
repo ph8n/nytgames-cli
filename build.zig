@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
 
     // Create executable
     const exe = b.addExecutable(.{
-        .name = "nytg_cli",
+        .name = "nytgames",
         .root_module = exe_mod,
     });
 
