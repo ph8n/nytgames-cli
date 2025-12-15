@@ -89,6 +89,90 @@ pub fn getWordleDailyStreak(db: *sqlite.Db, today: date.Date) !u32 {
     return streak;
 }
 
+pub const ConnectionsResult = struct {
+    puzzle_date: []const u8, // YYYY-MM-DD (local date)
+    puzzle_id: i32,
+    won: bool,
+    mistakes: u8, // 0-4
+    played_at: i64, // unix seconds
+};
+
+pub fn getConnectionsPlayedStatus(db: *sqlite.Db, puzzle_date: []const u8) !PlayedStatus {
+    const won = try db.one(
+        i64,
+        "SELECT won FROM connections_games WHERE puzzle_date = ? LIMIT 1",
+        .{},
+        .{puzzle_date},
+    );
+    if (won == null) return .not_played;
+    return if (won.? != 0) .won else .lost;
+}
+
+pub fn saveConnectionsResult(db: *sqlite.Db, result: ConnectionsResult) !void {
+    // If the date already exists, ignore to keep "played today" idempotent.
+    try db.exec(
+        \\INSERT OR IGNORE INTO connections_games (puzzle_date, puzzle_id, won, mistakes, played_at)
+        \\VALUES (?, ?, ?, ?, ?)
+    , .{}, .{
+        result.puzzle_date,
+        result.puzzle_id,
+        @as(i32, @intFromBool(result.won)),
+        @as(i32, result.mistakes),
+        result.played_at,
+    });
+}
+
+pub fn getConnectionsDailyStreak(db: *sqlite.Db, today: date.Date) !u32 {
+    var today_buf: date.YyyyMmDd = undefined;
+    date.formatYYYYMMDD(&today_buf, today);
+    const today_str = today_buf[0..];
+
+    const today_status = try getConnectionsPlayedStatus(db, today_str);
+    if (today_status == .lost) return 0;
+
+    var end_day = date.epochDayFromDate(today) catch return 0;
+    if (today_status == .not_played) {
+        if (end_day.day == 0) return 0;
+        end_day.day -= 1;
+    }
+
+    var end_buf: date.YyyyMmDd = undefined;
+    date.formatYYYYMMDDFromEpochDay(&end_buf, end_day);
+    const end_str = end_buf[0..];
+
+    // The streak only exists if we actually won on the end date.
+    const end_won = try db.one(
+        i64,
+        "SELECT won FROM connections_games WHERE puzzle_date = ? LIMIT 1",
+        .{},
+        .{end_str},
+    );
+    if (end_won == null or end_won.? == 0) return 0;
+
+    const Row = struct { puzzle_date: [10]u8 };
+
+    var stmt = try db.prepare(
+        \\SELECT puzzle_date
+        \\FROM connections_games
+        \\WHERE won = 1 AND puzzle_date <= ?
+        \\ORDER BY puzzle_date DESC
+    );
+    defer stmt.deinit();
+
+    var iter = try stmt.iterator(Row, .{end_str});
+    var expected = end_day;
+    var streak: u32 = 0;
+    while (try iter.next(.{})) |row| {
+        const row_day = date.epochDayFromYYYYMMDD(row.puzzle_date[0..]) catch break;
+        if (row_day.day != expected.day) break;
+
+        streak += 1;
+        if (expected.day == 0) break;
+        expected.day -= 1;
+    }
+    return streak;
+}
+
 pub fn saveWordleResult(db: *sqlite.Db, result: WordleResult) !void {
     // If the date already exists, ignore to keep "played today" idempotent.
     try db.exec(

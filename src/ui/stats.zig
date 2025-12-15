@@ -122,6 +122,7 @@ fn runWordle(
                     }
                 }
             },
+            .mouse, .mouse_leave => {},
         }
     }
 }
@@ -160,6 +161,7 @@ fn runWordleUnlimited(
                 if (keys.isCtrlC(k)) return .quit;
                 if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
             },
+            .mouse, .mouse_leave => {},
         }
     }
 }
@@ -336,6 +338,7 @@ fn runStub(
                 if (keys.isCtrlC(k)) return .quit;
                 if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
             },
+            .mouse, .mouse_leave => {},
         }
     }
 }

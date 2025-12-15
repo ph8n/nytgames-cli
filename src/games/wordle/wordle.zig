@@ -38,6 +38,7 @@ pub fn run(
     loop: *vaxis.Loop(app_event.Event),
     storage: *storage_db.Storage,
     mode: Mode,
+    dev_mode: bool,
     direct_launch: bool,
 ) !Exit {
     var allowed = try AllowedWords.init(allocator);
@@ -52,9 +53,11 @@ pub fn run(
     var puzzle_id: i32 = 0;
 
     if (mode == .daily) {
-        const already_played = try storage_stats.hasPlayedWordle(&storage.db, today[0..]);
-        if (already_played) {
-            return runAlreadyPlayedScreen(allocator, tty, vx, loop, today[0..], direct_launch);
+        if (!dev_mode) {
+            const already_played = try storage_stats.hasPlayedWordle(&storage.db, today[0..]);
+            if (already_played) {
+                return runAlreadyPlayedScreen(allocator, tty, vx, loop, today[0..], direct_launch);
+            }
         }
 
         var parsed = try api_client.fetchWordle(allocator, today[0..]);
@@ -75,6 +78,7 @@ pub fn run(
             .winsize => |ws| {
                 try vx.resize(allocator, tty.writer(), ws);
             },
+            .mouse, .mouse_leave => {},
             .key_press => |k| {
                 if (ui_keys.isCtrlC(k)) return .quit;
                 if (k.matches(vaxis.Key.escape, .{}) or k.matches('q', .{})) return .back_to_menu;
@@ -567,6 +571,7 @@ fn runAlreadyPlayedScreen(
 
         switch (loop.nextEvent()) {
             .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
+            .mouse, .mouse_leave => {},
             .key_press => |k| {
                 if (ui_keys.isCtrlC(k)) return .quit;
                 if (k.matches(vaxis.Key.escape, .{}) or isEnterKey(k) or k.matches(' ', .{})) {

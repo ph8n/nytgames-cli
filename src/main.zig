@@ -4,6 +4,7 @@ const vaxis = @import("vaxis");
 const app_event = @import("ui/event.zig");
 const menu = @import("ui/menu.zig");
 const stats = @import("ui/stats.zig");
+const connections = @import("games/connections/connections.zig");
 const wordle = @import("games/wordle/wordle.zig");
 const storage_db = @import("storage/db.zig");
 
@@ -15,27 +16,60 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
+    var dev_mode = false;
     var direct_wordle = false;
     var wordle_unlimited = false;
+    var direct_connections = false;
+    var positional: [2][]const u8 = undefined;
+    var positional_len: usize = 0;
+
     if (args.len >= 2) {
-        if (std.mem.eql(u8, args[1], "wordle")) {
+        for (args[1..]) |arg| {
+            if (std.mem.eql(u8, arg, "--dev") or std.mem.eql(u8, arg, "dev")) {
+                dev_mode = true;
+                continue;
+            }
+            if (positional_len >= positional.len) {
+                var stderr_writer = std.fs.File.stderr().writer(&.{});
+                try stderr_writer.interface.print("too many arguments\n", .{});
+                try stderr_writer.interface.print(
+                    "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
+                    .{args[0]},
+                );
+                return;
+            }
+            positional[positional_len] = arg;
+            positional_len += 1;
+        }
+    }
+
+    if (positional_len >= 1) {
+        if (std.mem.eql(u8, positional[0], "wordle")) {
             direct_wordle = true;
-            if (args.len >= 3) {
-                wordle_unlimited = std.mem.eql(u8, args[2], "unlimited");
+            if (positional_len >= 2) {
+                wordle_unlimited = std.mem.eql(u8, positional[1], "unlimited");
                 if (!wordle_unlimited) {
                     var stderr_writer = std.fs.File.stderr().writer(&.{});
-                    try stderr_writer.interface.print("unknown option: {s}\n", .{args[2]});
-                    try stderr_writer.interface.print("usage: {s} [wordle [unlimited]]\n", .{args[0]});
+                    try stderr_writer.interface.print("unknown option: {s}\n", .{positional[1]});
+                    try stderr_writer.interface.print(
+                        "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
+                        .{args[0]},
+                    );
                     return;
                 }
             }
-        } else if (std.mem.eql(u8, args[1], "unlimited")) {
+        } else if (std.mem.eql(u8, positional[0], "unlimited")) {
             direct_wordle = true;
             wordle_unlimited = true;
+        } else if (std.mem.eql(u8, positional[0], "connections")) {
+            direct_connections = true;
         } else {
             var stderr_writer = std.fs.File.stderr().writer(&.{});
-            try stderr_writer.interface.print("unknown command: {s}\n", .{args[1]});
-            try stderr_writer.interface.print("usage: {s} [wordle [unlimited]]\n", .{args[0]});
+            try stderr_writer.interface.print("unknown command: {s}\n", .{positional[0]});
+            try stderr_writer.interface.print(
+                "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
+                .{args[0]},
+            );
             return;
         }
     }
@@ -54,14 +88,25 @@ pub fn main() !void {
     defer loop.stop();
 
     try vx.enterAltScreen(tty.writer());
+    try vx.setMouseMode(tty.writer(), true);
     try vx.queryTerminal(tty.writer(), 1 * std.time.ns_per_s);
 
     var storage = try storage_db.open(allocator, .{});
     defer storage.deinit();
 
+    if (direct_connections) {
+        switch (try connections.run(allocator, &tty, &vx, &loop, &storage, dev_mode, true)) {
+            .quit => {
+                try flashQuit(&tty, &vx);
+                return;
+            },
+            .back_to_menu => {},
+        }
+    }
+
     if (direct_wordle) {
         const mode: wordle.Mode = if (wordle_unlimited) .unlimited else .daily;
-        switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, mode, true)) {
+        switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, mode, dev_mode, true)) {
             .quit => {
                 try flashQuit(&tty, &vx);
                 return;
@@ -71,19 +116,26 @@ pub fn main() !void {
     }
 
     while (true) {
-        switch (try menu.run(allocator, &tty, &vx, &loop, &storage)) {
+        switch (try menu.run(allocator, &tty, &vx, &loop, &storage, dev_mode)) {
             .quit => {
                 try flashQuit(&tty, &vx);
                 return;
             },
-            .wordle => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .daily, false)) {
+            .wordle => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .daily, dev_mode, false)) {
                 .back_to_menu => continue,
                 .quit => {
                     try flashQuit(&tty, &vx);
                     return;
                 },
             },
-            .wordle_unlimited => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .unlimited, false)) {
+            .wordle_unlimited => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .unlimited, dev_mode, false)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .connections => switch (try connections.run(allocator, &tty, &vx, &loop, &storage, dev_mode, false)) {
                 .back_to_menu => continue,
                 .quit => {
                     try flashQuit(&tty, &vx);

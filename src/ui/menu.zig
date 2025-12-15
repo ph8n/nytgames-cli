@@ -11,6 +11,7 @@ const storage_stats = @import("../storage/stats.zig");
 pub const Choice = enum {
     wordle,
     wordle_unlimited,
+    connections,
     stats_wordle,
     stats_wordle_unlimited,
     stats_connections,
@@ -22,6 +23,7 @@ pub const Choice = enum {
 
 const Row = enum {
     wordle,
+    connections,
     stats,
     quit,
 };
@@ -51,6 +53,7 @@ pub fn run(
     vx: *vaxis.Vaxis,
     loop: *vaxis.Loop(app_event.Event),
     storage: *storage_db.Storage,
+    dev_mode: bool,
 ) !Choice {
     var selected_row: Row = .wordle;
     var selected_wordle: WordleMode = .today;
@@ -61,9 +64,11 @@ pub fn run(
     var today_buf: date.YyyyMmDd = undefined;
     date.formatYYYYMMDD(&today_buf, today_date);
 
-    const wordle_status = try storage_stats.getWordlePlayedStatus(&storage.db, today_buf[0..]);
+    const wordle_status: storage_stats.PlayedStatus = if (dev_mode) .not_played else try storage_stats.getWordlePlayedStatus(&storage.db, today_buf[0..]);
     const wordle_streak = try storage_stats.getWordleDailyStreak(&storage.db, today_date);
     const wordle_unlimited_streak = try storage_stats.getWordleUnlimitedStreak(&storage.db);
+    const connections_status: storage_stats.PlayedStatus = if (dev_mode) .not_played else try storage_stats.getConnectionsPlayedStatus(&storage.db, today_buf[0..]);
+    const connections_streak = try storage_stats.getConnectionsDailyStreak(&storage.db, today_date);
 
     while (true) {
         const win = vx.window();
@@ -78,33 +83,51 @@ pub fn run(
         var streak_unlimited_buf: [32]u8 = undefined;
         const streak_unlimited_text = std.fmt.bufPrint(&streak_unlimited_buf, "streak {d}", .{wordle_unlimited_streak}) catch unreachable;
 
+        var streak_connections_buf: [32]u8 = undefined;
+        const streak_connections_text = std.fmt.bufPrint(&streak_connections_buf, "streak {d}", .{connections_streak}) catch unreachable;
+
         const today_mark: []const u8 = switch (wordle_status) {
             .not_played => " ",
             .won => "✓",
             .lost => "X",
         };
 
-        var right_buf: [256]u8 = undefined;
+        var wordle_right_buf: [256]u8 = undefined;
         const wordle_right_text = std.fmt.bufPrint(
-            &right_buf,
+            &wordle_right_buf,
             "  [ Today {s} ] {s}  [ Unlimited ] {s}",
             .{ today_mark, streak_today_text, streak_unlimited_text },
+        ) catch unreachable;
+
+        const connections_mark: []const u8 = switch (connections_status) {
+            .not_played => " ",
+            .won => "✓",
+            .lost => "X",
+        };
+        var connections_right_buf: [128]u8 = undefined;
+        const connections_right_text = std.fmt.bufPrint(
+            &connections_right_buf,
+            "  [ Today {s} ] {s}",
+            .{ connections_mark, streak_connections_text },
         ) catch unreachable;
 
         const prefix_w = win.gwidth("> ");
 
         const label_wordle = "Wordle";
+        const label_connections = "Connections";
         const label_stats = "Stats";
         const label_quit = "Quit";
 
         var label_w: u16 = win.gwidth(label_wordle);
+        label_w = @max(label_w, win.gwidth(label_connections));
         label_w = @max(label_w, win.gwidth(label_stats));
         label_w = @max(label_w, win.gwidth(label_quit));
 
         const gap: u16 = 2;
         const wordle_right_w = win.gwidth(wordle_right_text);
+        const connections_right_w = win.gwidth(connections_right_text);
         const stats_right_max_w = calcStatsRightWidthMax(win);
-        const right_region_w = @max(wordle_right_w, stats_right_max_w);
+        const right_region_w = @max(@max(wordle_right_w, connections_right_w), stats_right_max_w);
 
         var layout_w: u16 = prefix_w + label_w;
         layout_w = @max(layout_w, prefix_w + label_w + gap + right_region_w);
@@ -114,7 +137,7 @@ pub fn run(
         layout_w = @max(layout_w, title_w);
         layout_w = @max(layout_w, hint_w);
 
-        const block_h: u16 = 2 + 1 + 3; // title + hint + gap + rows
+        const block_h: u16 = 2 + 1 + 4; // title + hint + gap + rows
         const block_y: u16 = if (win.height > block_h) @intCast((win.height - block_h) / 2) else 0;
         const block_x: u16 = if (win.width > layout_w) @intCast((win.width - layout_w) / 2) else 0;
 
@@ -144,17 +167,28 @@ pub fn run(
             selected_wordle,
         );
 
-        renderStatsRow(
+        renderConnectionsRow(
             win,
             block_x,
             right_region_x,
             start_y + 1,
+            label_connections,
+            connections_status,
+            streak_connections_text,
+            selected_row,
+        );
+
+        renderStatsRow(
+            win,
+            block_x,
+            right_region_x,
+            start_y + 2,
             label_stats,
             selected_row,
             selected_stats,
             stats_window_start,
         );
-        renderSimpleRow(win, block_x, start_y + 2, label_quit, selected_row == .quit);
+        renderSimpleRow(win, block_x, start_y + 3, label_quit, selected_row == .quit);
 
         try vx.render(tty.writer());
 
@@ -166,12 +200,14 @@ pub fn run(
                 if (k.matches(vaxis.Key.up, .{}) or k.matches('k', .{})) {
                     selected_row = switch (selected_row) {
                         .wordle => .wordle,
-                        .stats => .wordle,
+                        .connections => .wordle,
+                        .stats => .connections,
                         .quit => .stats,
                     };
                 } else if (k.matches(vaxis.Key.down, .{}) or k.matches('j', .{})) {
                     selected_row = switch (selected_row) {
-                        .wordle => .stats,
+                        .wordle => .connections,
+                        .connections => .stats,
                         .stats => .quit,
                         .quit => .quit,
                     };
@@ -193,11 +229,13 @@ pub fn run(
                             .today => .wordle,
                             .unlimited => .wordle_unlimited,
                         },
+                        .connections => .connections,
                         .stats => stats_options[selected_stats].choice,
                         .quit => .quit,
                     };
                 }
             },
+            .mouse, .mouse_leave => {},
         }
     }
 }
@@ -333,6 +371,53 @@ fn renderStatsRow(
         .col_offset = col,
         .wrap = .none,
     });
+}
+
+fn renderConnectionsRow(
+    win: vaxis.Window,
+    block_x: u16,
+    right_x: u16,
+    y: u16,
+    label: []const u8,
+    status: storage_stats.PlayedStatus,
+    streak_text: []const u8,
+    selected_row: Row,
+) void {
+    const row_selected = selected_row == .connections;
+    const prefix = if (row_selected) "> " else "  ";
+    const label_style: vaxis.Style = if (row_selected) .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bold = true } else .{};
+    _ = win.print(&.{
+        .{ .text = prefix, .style = label_style },
+        .{ .text = label, .style = label_style },
+    }, .{ .row_offset = y, .col_offset = block_x, .wrap = .none });
+
+    const selected_button: vaxis.Style = .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bg = colors.ui.highlight, .bold = true };
+    const btn_style: vaxis.Style = if (row_selected) selected_button else .{};
+
+    const mark: []const u8 = switch (status) {
+        .not_played => " ",
+        .won => "✓",
+        .lost => "X",
+    };
+    const mark_fg = switch (status) {
+        .not_played => colors.ui.text_dim,
+        .won => colors.wordle.correct,
+        .lost => vaxis.Color{ .rgb = .{ 220, 20, 60 } },
+    };
+    const mark_style: vaxis.Style = .{
+        .fg = mark_fg,
+        .bg = if (row_selected) colors.ui.highlight else vaxis.Color.default,
+        .bold = true,
+    };
+
+    _ = win.print(&.{
+        .{ .text = "  ", .style = .{} },
+        .{ .text = "[ Today ", .style = btn_style },
+        .{ .text = mark, .style = mark_style },
+        .{ .text = " ]", .style = btn_style },
+        .{ .text = " ", .style = .{} },
+        .{ .text = streak_text, .style = .{ .fg = colors.ui.text_dim } },
+    }, .{ .row_offset = y, .col_offset = right_x, .wrap = .none });
 }
 
 fn calcStatsRightWidth(win: vaxis.Window, window_start: usize) u16 {
