@@ -90,6 +90,13 @@ pub fn main() !void {
                     return;
                 },
             },
+            .wordle_unlimited => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .unlimited, false)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
         }
     }
 }

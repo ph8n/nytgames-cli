@@ -10,6 +10,7 @@ const storage_stats = @import("../storage/stats.zig");
 
 pub const Choice = enum {
     wordle,
+    wordle_unlimited,
     stats,
     quit,
 };
@@ -27,6 +28,7 @@ pub fn run(
 
     const items = [_]struct { label: []const u8, choice: Choice, status: storage_stats.PlayedStatus }{
         .{ .label = "Wordle", .choice = .wordle, .status = wordle_status },
+        .{ .label = "Wordle Unlimited", .choice = .wordle_unlimited, .status = .not_played },
         .{ .label = "Stats", .choice = .stats, .status = .not_played },
         .{ .label = "Quit", .choice = .quit, .status = .not_played },
     };
@@ -37,9 +39,9 @@ pub fn run(
         win.hideCursor();
 
         const title = "nytg-cli";
-        const hint = "↑/↓ or j/k  •  Enter/Space";
+        const hint = "↑/↓ or j/k  •  Enter/Space  •  Ctrl+C";
         const win_mark = "✓";
-        const lose_mark = "X";
+        const lose_mark = "x";
 
         // Determine menu layout width
         var list_w: u16 = 0;
