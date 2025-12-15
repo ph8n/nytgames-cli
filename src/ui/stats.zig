@@ -191,18 +191,6 @@ fn renderWordleUnlimitedRecent(
     plot.clear();
     if (plot.width < 20 or plot.height < 9) return;
 
-    if (games.len == 0) {
-        const msg = "No games yet";
-        const msg_w = win.gwidth(msg);
-        const col: u16 = if (plot.width > msg_w) @intCast((plot.width - msg_w) / 2) else 0;
-        _ = plot.print(&.{.{ .text = msg, .style = .{ .fg = colors.ui.text_dim } }}, .{
-            .row_offset = 2,
-            .col_offset = col,
-            .wrap = .none,
-        });
-        return;
-    }
-
     const y_labels = [_][]const u8{ "X", "6", "5", "4", "3", "2", "1" };
     const y_levels: u8 = 7; // 1..6 plus loss
     const axis_w: u16 = 2; // label + y-axis line
@@ -245,56 +233,75 @@ fn renderWordleUnlimitedRecent(
         });
     }
 
-    // Bars
-    for (0..games_to_draw) |i| {
-        const g = games[start_index + @as(usize, @intCast(i))];
-        const x: u16 = bars_x0 + @as(u16, @intCast(i)) * col_w;
-        const won = g.won != 0;
-        const guesses: u8 = @intCast(@max(@as(i64, 0), g.guesses));
-        const height: u8 = if (won) @min(@as(u8, 6), guesses) else 7;
-        const color = if (won) colors.wordle.correct else vaxis.Color{ .rgb = .{ 220, 20, 60 } };
-        const style: vaxis.Style = .{ .fg = color, .bold = true };
+    if (games.len == 0) {
+        const msg = "No games yet";
+        const msg_w = win.gwidth(msg);
+        const msg_x: u16 = if (plot.width > msg_w) @intCast((plot.width - msg_w) / 2) else 0;
+        _ = plot.print(&.{.{ .text = msg, .style = .{ .fg = colors.ui.text_dim } }}, .{
+            .row_offset = 2,
+            .col_offset = msg_x,
+            .wrap = .none,
+        });
+    } else {
+        // Bars
+        for (0..games_to_draw) |i| {
+            const g = games[start_index + @as(usize, @intCast(i))];
+            const x: u16 = bars_x0 + @as(u16, @intCast(i)) * col_w;
+            const won = g.won != 0;
+            const guesses: u8 = @intCast(@max(@as(i64, 0), g.guesses));
+            const height: u8 = if (won) @min(@as(u8, 6), guesses) else 7;
+            const color = if (won) colors.wordle.correct else vaxis.Color{ .rgb = .{ 220, 20, 60 } };
+            const style: vaxis.Style = .{ .fg = color, .bold = true };
 
-        var level: u8 = 0;
-        while (level < height) : (level += 1) {
-            const row_from_bottom: u16 = @as(u16, @intCast(y_levels - 1 - level));
-            plot.writeCell(x, row_from_bottom, .{
-                .char = .{ .grapheme = "█", .width = 1 },
-                .style = style,
+            var level: u8 = 0;
+            while (level < height) : (level += 1) {
+                const row_from_bottom: u16 = @as(u16, @intCast(y_levels - 1 - level));
+                plot.writeCell(x, row_from_bottom, .{
+                    .char = .{ .grapheme = "█", .width = 1 },
+                    .style = style,
+                });
+            }
+        }
+
+        // X ticks: show game number within the last-100 window.
+        const n: usize = @intCast(games_to_draw);
+        const tick1: usize = 1;
+        const tick_mid: usize = @max(@as(usize, 1), (n + 1) / 2);
+        const tick_last: usize = n;
+        const tick_values = [_]usize{ tick1, tick_mid, tick_last };
+        for (tick_values) |tick| {
+            if (tick < 1 or tick > n) continue;
+            const rel: usize = tick - 1;
+            const x: u16 = bars_x0 + @as(u16, @intCast(rel)) * col_w;
+            plot.writeCell(x, axis_row, .{
+                .char = .{ .grapheme = "┬", .width = 1 },
+                .style = .{ .fg = colors.ui.text_dim },
+            });
+
+            const label = try std.fmt.allocPrint(allocator, "{d}", .{tick});
+            const label_w = win.gwidth(label);
+            var label_x: u16 = x;
+            if (label_w > 0) {
+                const shift: u16 = @intCast(label_w - 1);
+                if (label_x >= shift) label_x -= shift else label_x = 0;
+                if (label_x + label_w > plot.width) label_x = plot.width - label_w;
+            }
+
+            _ = plot.print(&.{.{ .text = label, .style = .{ .fg = colors.ui.text_dim } }}, .{
+                .row_offset = axis_row + 1,
+                .col_offset = label_x,
+                .wrap = .none,
             });
         }
     }
 
-    // X ticks: show game number within the last-100 window.
-    const n: usize = @intCast(games_to_draw);
-    const tick1: usize = 1;
-    const tick_mid: usize = @max(@as(usize, 1), (n + 1) / 2);
-    const tick_last: usize = n;
-    const tick_values = [_]usize{ tick1, tick_mid, tick_last };
-    for (tick_values) |tick| {
-        if (tick < 1 or tick > n) continue;
-        const rel: usize = tick - 1;
-        const x: u16 = bars_x0 + @as(u16, @intCast(rel)) * col_w;
-        plot.writeCell(x, axis_row, .{
-            .char = .{ .grapheme = "┬", .width = 1 },
-            .style = .{ .fg = colors.ui.text_dim },
-        });
-
-        const label = try std.fmt.allocPrint(allocator, "{d}", .{tick});
-        const label_w = win.gwidth(label);
-        var label_x: u16 = x;
-        if (label_w > 0) {
-            const shift: u16 = @intCast(label_w - 1);
-            if (label_x >= shift) label_x -= shift else label_x = 0;
-            if (label_x + label_w > plot.width) label_x = plot.width - label_w;
-        }
-
-        _ = plot.print(&.{.{ .text = label, .style = .{ .fg = colors.ui.text_dim } }}, .{
-            .row_offset = axis_row + 1,
-            .col_offset = label_x,
-            .wrap = .none,
-        });
+    const played: u32 = @intCast(games.len);
+    var wins: u32 = 0;
+    for (games) |g| {
+        if (g.won != 0) wins += 1;
     }
+    const losses: u32 = played - wins;
+    try renderSummaryGrid(allocator, win, chart_y + 12, played, wins, losses);
 }
 
 fn runStub(
@@ -442,6 +449,17 @@ fn renderWordleMonth(
             });
         }
     }
+
+    var played: u32 = 0;
+    var wins: u32 = 0;
+    var losses: u32 = 0;
+    for (cache.games) |gopt| {
+        if (gopt) |g| {
+            played += 1;
+            if (g.won) wins += 1 else losses += 1;
+        }
+    }
+    try renderSummaryGrid(allocator, win, chart_y + 12, played, wins, losses);
 }
 
 fn ensureCache(
@@ -536,6 +554,86 @@ fn printCentered(win: vaxis.Window, row: u16, text: []const u8, style: vaxis.Sty
     const w = win.gwidth(text);
     const col: u16 = if (win.width > w) @as(u16, @intCast((win.width - w) / 2)) else 0;
     _ = win.print(&.{.{ .text = text, .style = style }}, .{ .row_offset = row, .col_offset = col, .wrap = .none });
+}
+
+fn renderSummaryGrid(
+    allocator: std.mem.Allocator,
+    win: vaxis.Window,
+    start_y: u16,
+    played: u32,
+    wins: u32,
+    losses: u32,
+) !void {
+    if (start_y >= win.height or win.width <= 4) return;
+
+    const win_rate: u32 = if (played == 0) 0 else @intCast((@as(u64, wins) * 100 + @as(u64, played) / 2) / @as(u64, played));
+
+    const played_text = try std.fmt.allocPrint(allocator, "{d}", .{played});
+    const win_rate_text = try std.fmt.allocPrint(allocator, "{d}%", .{win_rate});
+    const wins_text = try std.fmt.allocPrint(allocator, "{d}", .{wins});
+    const losses_text = try std.fmt.allocPrint(allocator, "{d}", .{losses});
+
+    const Item = struct { label: []const u8, value: []const u8 };
+    const items = [_]Item{
+        .{ .label = "Games played", .value = played_text },
+        .{ .label = "Win rate %", .value = win_rate_text },
+        .{ .label = "Wins", .value = wins_text },
+        .{ .label = "Losses", .value = losses_text },
+    };
+
+    const avail_rows_u16: u16 = win.height - start_y;
+    const rows_per_col: usize = @intCast(@min(@as(u16, @intCast(items.len)), avail_rows_u16));
+    if (rows_per_col == 0) return;
+
+    const needed_cols: usize = (items.len + rows_per_col - 1) / rows_per_col;
+    var cols: usize = @min(needed_cols, @as(usize, 2));
+    if (cols == 0) return;
+
+    var max_label_w: u16 = 0;
+    var max_value_w: u16 = 0;
+    for (items) |it| {
+        max_label_w = @max(max_label_w, win.gwidth(it.label));
+        max_value_w = @max(max_value_w, win.gwidth(it.value));
+    }
+
+    const col_w: u16 = max_label_w + 2 + max_value_w;
+    const col_gap: u16 = 6;
+    const total_w: u16 = @intCast(@as(u16, @intCast(cols)) * col_w + @as(u16, @intCast(cols - 1)) * col_gap);
+
+    const region_x: u16 = 2;
+    const region_w: u16 = win.width - 4;
+    if (total_w > region_w) cols = 1;
+
+    const total_w2: u16 = @intCast(@as(u16, @intCast(cols)) * col_w + @as(u16, @intCast(cols - 1)) * col_gap);
+    const x0: u16 = if (region_w > total_w2) region_x + (region_w - total_w2) / 2 else region_x;
+
+    const max_items: usize = @min(items.len, cols * rows_per_col);
+    const label_style: vaxis.Style = .{ .fg = colors.ui.text_dim };
+    const value_style: vaxis.Style = .{ .fg = colors.ui.text, .bold = true };
+    const pad_spaces = "                                                                ";
+
+    for (0..max_items) |i| {
+        const col_i: usize = i / rows_per_col;
+        const row_i: usize = i % rows_per_col;
+        const x: u16 = x0 + @as(u16, @intCast(col_i)) * (col_w + col_gap);
+        const y: u16 = start_y + @as(u16, @intCast(row_i));
+
+        const it = items[i];
+        const label_w = win.gwidth(it.label);
+        const pad_w: u16 = if (max_label_w > label_w) max_label_w - label_w else 0;
+        const pad_len: usize = @intCast(@min(@as(u16, @intCast(pad_spaces.len)), pad_w));
+
+        _ = win.print(&.{
+            .{ .text = it.label, .style = label_style },
+            .{ .text = pad_spaces[0..pad_len], .style = label_style },
+            .{ .text = "  ", .style = label_style },
+            .{ .text = it.value, .style = value_style },
+        }, .{
+            .row_offset = y,
+            .col_offset = x,
+            .wrap = .none,
+        });
+    }
 }
 
 test {
