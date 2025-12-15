@@ -73,7 +73,7 @@ fn configureDb(db: *sqlite.Db) !void {
     // Improves concurrency and reduces "database is locked" in practice.
     _ = try db.pragma([16:0]u8, .{}, "journal_mode", "WAL");
     _ = try db.pragma(void, .{}, "synchronous", "NORMAL");
-    try db.exec("PRAGMA busy_timeout = 5000", .{}, .{});
+    _ = try db.pragma(i64, .{}, "busy_timeout", "5000");
 }
 
 const LatestSchemaVersion: i64 = 1;
