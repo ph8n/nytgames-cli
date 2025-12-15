@@ -5,6 +5,8 @@ const app_event = @import("ui/event.zig");
 const menu = @import("ui/menu.zig");
 const stats = @import("ui/stats.zig");
 const connections = @import("games/connections/connections.zig");
+const mini_crossword = @import("games/mini_crossword/mini_crossword.zig");
+const stub_game = @import("games/stub.zig");
 const wordle = @import("games/wordle/wordle.zig");
 const storage_db = @import("storage/db.zig");
 
@@ -142,6 +144,34 @@ pub fn main() !void {
                     return;
                 },
             },
+            .spelling_bee => switch (try stub_game.run(allocator, &tty, &vx, &loop, "Spelling Bee")) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .strands => switch (try stub_game.run(allocator, &tty, &vx, &loop, "Strands")) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .mini => switch (try mini_crossword.run(allocator, &tty, &vx, &loop)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .sudoku => switch (try stub_game.run(allocator, &tty, &vx, &loop, "Sudoku")) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
             .stats_wordle => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .wordle)) {
                 .back_to_menu => continue,
                 .quit => {
@@ -171,6 +201,13 @@ pub fn main() !void {
                 },
             },
             .stats_strands => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .strands)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .stats_mini => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .mini)) {
                 .back_to_menu => continue,
                 .quit => {
                     try flashQuit(&tty, &vx);

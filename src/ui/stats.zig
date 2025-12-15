@@ -19,6 +19,7 @@ pub const Game = enum {
     connections,
     spelling_bee,
     strands,
+    mini,
     sudoku,
 };
 
@@ -56,6 +57,7 @@ pub fn run(
         .connections => runStub(allocator, tty, vx, loop, "Connections"),
         .spelling_bee => runStub(allocator, tty, vx, loop, "Spelling Bee"),
         .strands => runStub(allocator, tty, vx, loop, "Strands"),
+        .mini => runStub(allocator, tty, vx, loop, "Mini"),
         .sudoku => runStub(allocator, tty, vx, loop, "Sudoku"),
     };
 }

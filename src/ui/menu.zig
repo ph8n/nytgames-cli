@@ -12,18 +12,27 @@ pub const Choice = enum {
     wordle,
     wordle_unlimited,
     connections,
+    spelling_bee,
+    strands,
+    mini,
+    sudoku,
     stats_wordle,
     stats_wordle_unlimited,
     stats_connections,
     stats_spelling_bee,
     stats_strands,
+    stats_mini,
     stats_sudoku,
     quit,
 };
 
-const Row = enum {
+const Row = enum(u4) {
     wordle,
     connections,
+    spelling_bee,
+    strands,
+    mini,
+    sudoku,
     stats,
     quit,
 };
@@ -44,6 +53,7 @@ const stats_options = [_]StatsOption{
     .{ .label = "Connections", .choice = .stats_connections },
     .{ .label = "Spelling Bee", .choice = .stats_spelling_bee },
     .{ .label = "Strands", .choice = .stats_strands },
+    .{ .label = "Mini", .choice = .stats_mini },
     .{ .label = "Sudoku", .choice = .stats_sudoku },
 };
 
@@ -69,6 +79,9 @@ pub fn run(
     const wordle_unlimited_streak = try storage_stats.getWordleUnlimitedStreak(&storage.db);
     const connections_status: storage_stats.PlayedStatus = if (dev_mode) .not_played else try storage_stats.getConnectionsPlayedStatus(&storage.db, today_buf[0..]);
     const connections_streak = try storage_stats.getConnectionsDailyStreak(&storage.db, today_date);
+
+    const rows_count_u4: u4 = @intCast(@typeInfo(Row).@"enum".fields.len);
+    const rows_count: u16 = @intCast(rows_count_u4);
 
     while (true) {
         const win = vx.window();
@@ -115,11 +128,19 @@ pub fn run(
 
         const label_wordle = "Wordle";
         const label_connections = "Connections";
+        const label_spelling_bee = "Spelling Bee";
+        const label_strands = "Strands";
+        const label_mini = "Mini";
+        const label_sudoku = "Sudoku";
         const label_stats = "Stats";
         const label_quit = "Quit";
 
         var label_w: u16 = win.gwidth(label_wordle);
         label_w = @max(label_w, win.gwidth(label_connections));
+        label_w = @max(label_w, win.gwidth(label_spelling_bee));
+        label_w = @max(label_w, win.gwidth(label_strands));
+        label_w = @max(label_w, win.gwidth(label_mini));
+        label_w = @max(label_w, win.gwidth(label_sudoku));
         label_w = @max(label_w, win.gwidth(label_stats));
         label_w = @max(label_w, win.gwidth(label_quit));
 
@@ -127,7 +148,8 @@ pub fn run(
         const wordle_right_w = win.gwidth(wordle_right_text);
         const connections_right_w = win.gwidth(connections_right_text);
         const stats_right_max_w = calcStatsRightWidthMax(win);
-        const right_region_w = @max(@max(wordle_right_w, connections_right_w), stats_right_max_w);
+        const single_today_right_w = win.gwidth("  [ Today ]");
+        const right_region_w = @max(@max(@max(wordle_right_w, connections_right_w), stats_right_max_w), single_today_right_w);
 
         var layout_w: u16 = prefix_w + label_w;
         layout_w = @max(layout_w, prefix_w + label_w + gap + right_region_w);
@@ -137,7 +159,7 @@ pub fn run(
         layout_w = @max(layout_w, title_w);
         layout_w = @max(layout_w, hint_w);
 
-        const block_h: u16 = 2 + 1 + 4; // title + hint + gap + rows
+        const block_h: u16 = 2 + 1 + rows_count; // title + hint + gap + rows
         const block_y: u16 = if (win.height > block_h) @intCast((win.height - block_h) / 2) else 0;
         const block_x: u16 = if (win.width > layout_w) @intCast((win.width - layout_w) / 2) else 0;
 
@@ -178,17 +200,22 @@ pub fn run(
             selected_row,
         );
 
+        renderSingleTodayRow(win, block_x, right_region_x, start_y + 2, label_spelling_bee, selected_row == .spelling_bee);
+        renderSingleTodayRow(win, block_x, right_region_x, start_y + 3, label_strands, selected_row == .strands);
+        renderSingleTodayRow(win, block_x, right_region_x, start_y + 4, label_mini, selected_row == .mini);
+        renderSingleTodayRow(win, block_x, right_region_x, start_y + 5, label_sudoku, selected_row == .sudoku);
+
         renderStatsRow(
             win,
             block_x,
             right_region_x,
-            start_y + 2,
+            start_y + 6,
             label_stats,
             selected_row,
             selected_stats,
             stats_window_start,
         );
-        renderSimpleRow(win, block_x, start_y + 3, label_quit, selected_row == .quit);
+        renderSimpleRow(win, block_x, start_y + 7, label_quit, selected_row == .quit);
 
         try vx.render(tty.writer());
 
@@ -198,19 +225,11 @@ pub fn run(
                 if (keys.isCtrlC(k)) return .quit;
 
                 if (k.matches(vaxis.Key.up, .{}) or k.matches('k', .{})) {
-                    selected_row = switch (selected_row) {
-                        .wordle => .wordle,
-                        .connections => .wordle,
-                        .stats => .connections,
-                        .quit => .stats,
-                    };
+                    const cur: u4 = @intCast(@intFromEnum(selected_row));
+                    if (cur > 0) selected_row = @enumFromInt(cur - 1);
                 } else if (k.matches(vaxis.Key.down, .{}) or k.matches('j', .{})) {
-                    selected_row = switch (selected_row) {
-                        .wordle => .connections,
-                        .connections => .stats,
-                        .stats => .quit,
-                        .quit => .quit,
-                    };
+                    const cur: u4 = @intCast(@intFromEnum(selected_row));
+                    if (cur + 1 < rows_count_u4) selected_row = @enumFromInt(cur + 1);
                 } else if (k.matches(vaxis.Key.left, .{}) or k.matches('h', .{})) {
                     if (selected_row == .wordle) selected_wordle = .today;
                     if (selected_row == .stats and selected_stats > 0) {
@@ -230,6 +249,10 @@ pub fn run(
                             .unlimited => .wordle_unlimited,
                         },
                         .connections => .connections,
+                        .spelling_bee => .spelling_bee,
+                        .strands => .strands,
+                        .mini => .mini,
+                        .sudoku => .sudoku,
                         .stats => stats_options[selected_stats].choice,
                         .quit => .quit,
                     };
@@ -238,6 +261,22 @@ pub fn run(
             .mouse, .mouse_leave => {},
         }
     }
+}
+
+fn renderSingleTodayRow(win: vaxis.Window, block_x: u16, right_x: u16, y: u16, label: []const u8, selected: bool) void {
+    const prefix = if (selected) "> " else "  ";
+    const label_style: vaxis.Style = if (selected) .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bold = true } else .{};
+    _ = win.print(&.{
+        .{ .text = prefix, .style = label_style },
+        .{ .text = label, .style = label_style },
+    }, .{ .row_offset = y, .col_offset = block_x, .wrap = .none });
+
+    const selected_button: vaxis.Style = .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bg = colors.ui.highlight, .bold = true };
+    const btn_style: vaxis.Style = if (selected) selected_button else .{};
+    _ = win.print(&.{
+        .{ .text = "  ", .style = .{} },
+        .{ .text = "[ Today ]", .style = btn_style },
+    }, .{ .row_offset = y, .col_offset = right_x, .wrap = .none });
 }
 
 fn renderSimpleRow(win: vaxis.Window, x: u16, y: u16, label: []const u8, selected: bool) void {
