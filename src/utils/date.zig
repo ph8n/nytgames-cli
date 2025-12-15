@@ -13,6 +13,61 @@ pub const Date = struct {
 
 pub const YyyyMmDd = [10]u8;
 
+pub fn parseYYYYMMDD(s: []const u8) ?Date {
+    if (s.len < 10) return null;
+    if (s[4] != '-' or s[7] != '-') return null;
+
+    const year = std.fmt.parseInt(std.time.epoch.Year, s[0..4], 10) catch return null;
+    const month = std.fmt.parseInt(u8, s[5..7], 10) catch return null;
+    const day = std.fmt.parseInt(u8, s[8..10], 10) catch return null;
+    if (month < 1 or month > 12) return null;
+
+    const m: std.time.epoch.Month = @enumFromInt(@as(u4, @intCast(month)));
+    const days_in_month: u8 = @intCast(std.time.epoch.getDaysInMonth(year, m));
+    if (day < 1 or day > days_in_month) return null;
+
+    return .{ .year = year, .month = month, .day = day };
+}
+
+pub fn dateFromEpochDay(epoch_day: std.time.epoch.EpochDay) Date {
+    const year_day = epoch_day.calculateYearDay();
+    const month_day = year_day.calculateMonthDay();
+    return .{
+        .year = year_day.year,
+        .month = @intCast(month_day.month.numeric()),
+        .day = @intCast(month_day.day_index + 1),
+    };
+}
+
+pub fn epochDayFromDate(d: Date) error{InvalidDate}!std.time.epoch.EpochDay {
+    if (d.year < std.time.epoch.epoch_year) return error.InvalidDate;
+    if (d.month < 1 or d.month > 12) return error.InvalidDate;
+
+    const m: std.time.epoch.Month = @enumFromInt(@as(u4, @intCast(d.month)));
+    const days_in_month: u8 = @intCast(std.time.epoch.getDaysInMonth(d.year, m));
+    if (d.day < 1 or d.day > days_in_month) return error.InvalidDate;
+
+    var days: u64 = 0;
+    var y: std.time.epoch.Year = std.time.epoch.epoch_year;
+    while (y < d.year) : (y += 1) {
+        days += std.time.epoch.getDaysInYear(y);
+    }
+
+    var month: u8 = 1;
+    while (month < d.month) : (month += 1) {
+        const mm: std.time.epoch.Month = @enumFromInt(@as(u4, @intCast(month)));
+        days += std.time.epoch.getDaysInMonth(d.year, mm);
+    }
+
+    days += @as(u64, d.day) - 1;
+    return .{ .day = @intCast(days) };
+}
+
+pub fn epochDayFromYYYYMMDD(s: []const u8) error{InvalidDate}!std.time.epoch.EpochDay {
+    const parsed = parseYYYYMMDD(s) orelse return error.InvalidDate;
+    return try epochDayFromDate(parsed);
+}
+
 pub fn utcDateFromUnixTimestampSeconds(timestamp_seconds: i64) error{NegativeTimestamp}!Date {
     if (timestamp_seconds < 0) return error.NegativeTimestamp;
 
@@ -63,6 +118,10 @@ pub fn formatYYYYMMDD(buf: *YyyyMmDd, date: Date) void {
         date.month,
         date.day,
     }) catch unreachable;
+}
+
+pub fn formatYYYYMMDDFromEpochDay(buf: *YyyyMmDd, epoch_day: std.time.epoch.EpochDay) void {
+    formatYYYYMMDD(buf, dateFromEpochDay(epoch_day));
 }
 
 pub fn todayUtcYYYYMMDD() error{NegativeTimestamp}!YyyyMmDd {

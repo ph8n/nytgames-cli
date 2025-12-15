@@ -11,8 +11,38 @@ const storage_stats = @import("../storage/stats.zig");
 pub const Choice = enum {
     wordle,
     wordle_unlimited,
+    stats_wordle,
+    stats_wordle_unlimited,
+    stats_connections,
+    stats_spelling_bee,
+    stats_strands,
+    stats_sudoku,
+    quit,
+};
+
+const Row = enum {
+    wordle,
     stats,
     quit,
+};
+
+const WordleMode = enum {
+    today,
+    unlimited,
+};
+
+const StatsOption = struct {
+    label: []const u8,
+    choice: Choice,
+};
+
+const stats_options = [_]StatsOption{
+    .{ .label = "Wordle", .choice = .stats_wordle },
+    .{ .label = "Wordle Unlimited", .choice = .stats_wordle_unlimited },
+    .{ .label = "Connections", .choice = .stats_connections },
+    .{ .label = "Spelling Bee", .choice = .stats_spelling_bee },
+    .{ .label = "Strands", .choice = .stats_strands },
+    .{ .label = "Sudoku", .choice = .stats_sudoku },
 };
 
 pub fn run(
@@ -22,16 +52,18 @@ pub fn run(
     loop: *vaxis.Loop(app_event.Event),
     storage: *storage_db.Storage,
 ) !Choice {
-    var selected: u8 = 0;
-    const today = try date.todayLocalYYYYMMDD();
-    const wordle_status = try storage_stats.getWordlePlayedStatus(&storage.db, today[0..]);
+    var selected_row: Row = .wordle;
+    var selected_wordle: WordleMode = .today;
+    var selected_stats: usize = 0;
+    var stats_window_start: usize = 0;
 
-    const items = [_]struct { label: []const u8, choice: Choice, status: storage_stats.PlayedStatus }{
-        .{ .label = "Wordle", .choice = .wordle, .status = wordle_status },
-        .{ .label = "Wordle Unlimited", .choice = .wordle_unlimited, .status = .not_played },
-        .{ .label = "Stats", .choice = .stats, .status = .not_played },
-        .{ .label = "Quit", .choice = .quit, .status = .not_played },
-    };
+    const today_date = try date.todayLocal();
+    var today_buf: date.YyyyMmDd = undefined;
+    date.formatYYYYMMDD(&today_buf, today_date);
+
+    const wordle_status = try storage_stats.getWordlePlayedStatus(&storage.db, today_buf[0..]);
+    const wordle_streak = try storage_stats.getWordleDailyStreak(&storage.db, today_date);
+    const wordle_unlimited_streak = try storage_stats.getWordleUnlimitedStreak(&storage.db);
 
     while (true) {
         const win = vx.window();
@@ -39,25 +71,50 @@ pub fn run(
         win.hideCursor();
 
         const title = "nytg-cli";
-        const hint = "↑/↓ or j/k  •  Enter/Space  •  Ctrl+C";
-        const win_mark = "✓";
-        const lose_mark = "x";
+        const hint = "↑/↓ j/k  •  ←/→ h/l  •  Enter/Space  •  Ctrl+C";
 
-        // Determine menu layout width
-        var list_w: u16 = 0;
-        for (items) |it| {
-            // prefix + label + space + mark
-            const w = win.gwidth(it.label) + win.gwidth("> ") + 1 + 1;
-            if (w > list_w) list_w = w;
-        }
+        var streak_today_buf: [32]u8 = undefined;
+        const streak_today_text = std.fmt.bufPrint(&streak_today_buf, "streak {d}", .{wordle_streak}) catch unreachable;
+        var streak_unlimited_buf: [32]u8 = undefined;
+        const streak_unlimited_text = std.fmt.bufPrint(&streak_unlimited_buf, "streak {d}", .{wordle_unlimited_streak}) catch unreachable;
+
+        const today_mark: []const u8 = switch (wordle_status) {
+            .not_played => " ",
+            .won => "✓",
+            .lost => "X",
+        };
+
+        var right_buf: [256]u8 = undefined;
+        const wordle_right_text = std.fmt.bufPrint(
+            &right_buf,
+            "  [ Today {s} ] {s}  [ Unlimited ] {s}",
+            .{ today_mark, streak_today_text, streak_unlimited_text },
+        ) catch unreachable;
+
+        const prefix_w = win.gwidth("> ");
+
+        const label_wordle = "Wordle";
+        const label_stats = "Stats";
+        const label_quit = "Quit";
+
+        var label_w: u16 = win.gwidth(label_wordle);
+        label_w = @max(label_w, win.gwidth(label_stats));
+        label_w = @max(label_w, win.gwidth(label_quit));
+
+        const gap: u16 = 2;
+        const wordle_right_w = win.gwidth(wordle_right_text);
+        const stats_right_max_w = calcStatsRightWidthMax(win);
+        const right_region_w = @max(wordle_right_w, stats_right_max_w);
+
+        var layout_w: u16 = prefix_w + label_w;
+        layout_w = @max(layout_w, prefix_w + label_w + gap + right_region_w);
 
         const title_w = win.gwidth(title);
         const hint_w = win.gwidth(hint);
-        var layout_w = list_w;
-        if (title_w > layout_w) layout_w = title_w;
-        if (hint_w > layout_w) layout_w = hint_w;
+        layout_w = @max(layout_w, title_w);
+        layout_w = @max(layout_w, hint_w);
 
-        const block_h: u16 = 2 + 1 + @as(u16, @intCast(items.len)); // title + hint + gap + items
+        const block_h: u16 = 2 + 1 + 3; // title + hint + gap + rows
         const block_y: u16 = if (win.height > block_h) @intCast((win.height - block_h) / 2) else 0;
         const block_x: u16 = if (win.width > layout_w) @intCast((win.width - layout_w) / 2) else 0;
 
@@ -73,41 +130,31 @@ pub fn run(
         });
 
         const start_y: u16 = block_y + 3;
-        for (items, 0..) |it, i| {
-            const is_sel = selected == i;
-            const prefix = if (is_sel) "> " else "  ";
-            const style: vaxis.Style = if (is_sel) .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bold = true } else .{};
-            _ = win.print(&.{
-                .{ .text = prefix, .style = style },
-                .{ .text = it.label, .style = style },
-            }, .{
-                .row_offset = start_y + @as(u16, @intCast(i)),
-                .col_offset = block_x,
-                .wrap = .none,
-            });
+        const right_region_x: u16 = block_x + layout_w - right_region_w;
+        renderWordleRow(
+            win,
+            block_x,
+            right_region_x,
+            start_y,
+            label_wordle,
+            wordle_status,
+            streak_today_text,
+            streak_unlimited_text,
+            selected_row,
+            selected_wordle,
+        );
 
-            const mark: ?[]const u8 = switch (it.status) {
-                .not_played => null,
-                .won => win_mark,
-                .lost => lose_mark,
-            };
-            if (mark) |m| {
-                const mark_style: vaxis.Style = .{
-                    .fg = switch (it.status) {
-                        .won => colors.wordle.correct,
-                        .lost => .{ .rgb = .{ 220, 20, 60 } },
-                        .not_played => colors.ui.text_dim,
-                    },
-                    .bold = true,
-                };
-                const mark_col: u16 = block_x + layout_w - win.gwidth(m);
-                _ = win.print(&.{.{ .text = m, .style = mark_style }}, .{
-                    .row_offset = start_y + @as(u16, @intCast(i)),
-                    .col_offset = mark_col,
-                    .wrap = .none,
-                });
-            }
-        }
+        renderStatsRow(
+            win,
+            block_x,
+            right_region_x,
+            start_y + 1,
+            label_stats,
+            selected_row,
+            selected_stats,
+            stats_window_start,
+        );
+        renderSimpleRow(win, block_x, start_y + 2, label_quit, selected_row == .quit);
 
         try vx.render(tty.writer());
 
@@ -117,15 +164,220 @@ pub fn run(
                 if (keys.isCtrlC(k)) return .quit;
 
                 if (k.matches(vaxis.Key.up, .{}) or k.matches('k', .{})) {
-                    if (selected > 0) selected -= 1;
+                    selected_row = switch (selected_row) {
+                        .wordle => .wordle,
+                        .stats => .wordle,
+                        .quit => .stats,
+                    };
                 } else if (k.matches(vaxis.Key.down, .{}) or k.matches('j', .{})) {
-                    if (selected + 1 < items.len) selected += 1;
+                    selected_row = switch (selected_row) {
+                        .wordle => .stats,
+                        .stats => .quit,
+                        .quit => .quit,
+                    };
+                } else if (k.matches(vaxis.Key.left, .{}) or k.matches('h', .{})) {
+                    if (selected_row == .wordle) selected_wordle = .today;
+                    if (selected_row == .stats and selected_stats > 0) {
+                        selected_stats -= 1;
+                        ensureVisible(&stats_window_start, selected_stats, stats_options.len, 3);
+                    }
+                } else if (k.matches(vaxis.Key.right, .{}) or k.matches('l', .{})) {
+                    if (selected_row == .wordle) selected_wordle = .unlimited;
+                    if (selected_row == .stats and selected_stats + 1 < stats_options.len) {
+                        selected_stats += 1;
+                        ensureVisible(&stats_window_start, selected_stats, stats_options.len, 3);
+                    }
                 } else if (isConfirmKey(k)) {
-                    return items[selected].choice;
+                    return switch (selected_row) {
+                        .wordle => switch (selected_wordle) {
+                            .today => .wordle,
+                            .unlimited => .wordle_unlimited,
+                        },
+                        .stats => stats_options[selected_stats].choice,
+                        .quit => .quit,
+                    };
                 }
             },
         }
     }
+}
+
+fn renderSimpleRow(win: vaxis.Window, x: u16, y: u16, label: []const u8, selected: bool) void {
+    const prefix = if (selected) "> " else "  ";
+    const style: vaxis.Style = if (selected) .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bold = true } else .{};
+    _ = win.print(&.{
+        .{ .text = prefix, .style = style },
+        .{ .text = label, .style = style },
+    }, .{ .row_offset = y, .col_offset = x, .wrap = .none });
+}
+
+fn renderWordleRow(
+    win: vaxis.Window,
+    block_x: u16,
+    right_x: u16,
+    y: u16,
+    label: []const u8,
+    wordle_status: storage_stats.PlayedStatus,
+    streak_today_text: []const u8,
+    streak_unlimited_text: []const u8,
+    selected_row: Row,
+    selected_wordle: WordleMode,
+) void {
+    const row_selected = selected_row == .wordle;
+    const prefix = if (row_selected) "> " else "  ";
+    const label_style: vaxis.Style = if (row_selected) .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bold = true } else .{};
+    _ = win.print(&.{
+        .{ .text = prefix, .style = label_style },
+        .{ .text = label, .style = label_style },
+    }, .{ .row_offset = y, .col_offset = block_x, .wrap = .none });
+
+    const selected_button: vaxis.Style = .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bg = colors.ui.highlight, .bold = true };
+
+    const today_selected = row_selected and selected_wordle == .today;
+    const unlimited_selected = row_selected and selected_wordle == .unlimited;
+    const today_style: vaxis.Style = if (today_selected) selected_button else .{};
+    const unlimited_style: vaxis.Style = if (unlimited_selected) selected_button else .{};
+
+    const mark: []const u8 = switch (wordle_status) {
+        .not_played => " ",
+        .won => "✓",
+        .lost => "X",
+    };
+
+    const mark_fg = switch (wordle_status) {
+        .not_played => colors.ui.text_dim,
+        .won => colors.wordle.correct,
+        .lost => vaxis.Color{ .rgb = .{ 220, 20, 60 } },
+    };
+    const mark_style: vaxis.Style = .{
+        .fg = mark_fg,
+        .bg = if (today_selected) colors.ui.highlight else vaxis.Color.default,
+        .bold = true,
+    };
+
+    _ = win.print(&.{
+        .{ .text = "  ", .style = .{} },
+        .{ .text = "[ Today ", .style = today_style },
+        .{ .text = mark, .style = mark_style },
+        .{ .text = " ]", .style = today_style },
+        .{ .text = " ", .style = .{} },
+        .{ .text = streak_today_text, .style = .{ .fg = colors.ui.text_dim } },
+        .{ .text = "  ", .style = .{} },
+        .{ .text = "[ Unlimited ]", .style = unlimited_style },
+        .{ .text = " ", .style = .{} },
+        .{ .text = streak_unlimited_text, .style = .{ .fg = colors.ui.text_dim } },
+    }, .{ .row_offset = y, .col_offset = right_x, .wrap = .none });
+}
+
+fn renderStatsRow(
+    win: vaxis.Window,
+    block_x: u16,
+    right_x: u16,
+    y: u16,
+    label: []const u8,
+    selected_row: Row,
+    selected_stats: usize,
+    window_start: usize,
+) void {
+    const row_selected = selected_row == .stats;
+    const prefix = if (row_selected) "> " else "  ";
+    const label_style: vaxis.Style = if (row_selected) .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bold = true } else .{};
+    _ = win.print(&.{
+        .{ .text = prefix, .style = label_style },
+        .{ .text = label, .style = label_style },
+    }, .{ .row_offset = y, .col_offset = block_x, .wrap = .none });
+
+    const selected_button: vaxis.Style = .{ .fg = .{ .rgb = .{ 255, 255, 255 } }, .bg = colors.ui.highlight, .bold = true };
+
+    const visible: usize = @min(@as(usize, 3), stats_options.len);
+    const end: usize = @min(window_start + visible, stats_options.len);
+
+    const can_left = window_start > 0;
+    const can_right = (window_start + visible) < stats_options.len;
+    const arrow_style: vaxis.Style = .{ .fg = if (row_selected) colors.ui.text else colors.ui.text_dim };
+    const arrow_dim: vaxis.Style = .{ .fg = colors.ui.text_dim };
+
+    var col: u16 = right_x;
+
+    _ = win.print(&.{.{ .text = "<", .style = if (can_left) arrow_style else arrow_dim }}, .{
+        .row_offset = y,
+        .col_offset = col,
+        .wrap = .none,
+    });
+    col += 1;
+    _ = win.print(&.{.{ .text = " ", .style = .{} }}, .{ .row_offset = y, .col_offset = col, .wrap = .none });
+    col += 1;
+
+    for (window_start..end) |i| {
+        const opt = stats_options[i];
+        const is_sel = row_selected and i == selected_stats;
+        const style: vaxis.Style = if (is_sel) selected_button else .{};
+
+        _ = win.print(&.{.{ .text = "[ ", .style = style }}, .{ .row_offset = y, .col_offset = col, .wrap = .none });
+        col += 2;
+        _ = win.print(&.{.{ .text = opt.label, .style = style }}, .{ .row_offset = y, .col_offset = col, .wrap = .none });
+        col += win.gwidth(opt.label);
+        _ = win.print(&.{.{ .text = " ]", .style = style }}, .{ .row_offset = y, .col_offset = col, .wrap = .none });
+        col += 2;
+
+        if (i + 1 < end) {
+            _ = win.print(&.{.{ .text = " ", .style = .{} }}, .{ .row_offset = y, .col_offset = col, .wrap = .none });
+            col += 1;
+        }
+    }
+
+    _ = win.print(&.{.{ .text = " ", .style = .{} }}, .{ .row_offset = y, .col_offset = col, .wrap = .none });
+    col += 1;
+    _ = win.print(&.{.{ .text = ">", .style = if (can_right) arrow_style else arrow_dim }}, .{
+        .row_offset = y,
+        .col_offset = col,
+        .wrap = .none,
+    });
+}
+
+fn calcStatsRightWidth(win: vaxis.Window, window_start: usize) u16 {
+    const visible: usize = @min(@as(usize, 3), stats_options.len);
+    var w: u16 = 0;
+    w += 1; // <
+    w += 1; // space
+
+    const end: usize = @min(window_start + visible, stats_options.len);
+    for (window_start..end) |i| {
+        const opt = stats_options[i];
+        w += 2; // "[ "
+        w += win.gwidth(opt.label);
+        w += 2; // " ]"
+        if (i + 1 < end) w += 1; // space between buttons
+    }
+
+    w += 1; // space
+    w += 1; // >
+    return w;
+}
+
+fn calcStatsRightWidthMax(win: vaxis.Window) u16 {
+    if (stats_options.len == 0) return 0;
+    const visible: usize = @min(@as(usize, 3), stats_options.len);
+    if (visible == 0) return 0;
+
+    var max_w = calcStatsRightWidth(win, 0);
+    const last_start: usize = if (stats_options.len > visible) stats_options.len - visible else 0;
+    var start: usize = 0;
+    while (start <= last_start) : (start += 1) {
+        max_w = @max(max_w, calcStatsRightWidth(win, start));
+    }
+    return max_w;
+}
+
+fn ensureVisible(window_start: *usize, selected: usize, len: usize, max_visible: usize) void {
+    if (len == 0) {
+        window_start.* = 0;
+        return;
+    }
+    const visible = @min(max_visible, len);
+    if (selected < window_start.*) window_start.* = selected;
+    if (selected >= window_start.* + visible) window_start.* = selected - (visible - 1);
+    if (window_start.* + visible > len) window_start.* = len - visible;
 }
 
 fn isConfirmKey(k: vaxis.Key) bool {

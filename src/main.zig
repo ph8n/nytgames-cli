@@ -76,13 +76,6 @@ pub fn main() !void {
                 try flashQuit(&tty, &vx);
                 return;
             },
-            .stats => switch (try stats.run(allocator, &tty, &vx, &loop, &storage)) {
-                .back_to_menu => continue,
-                .quit => {
-                    try flashQuit(&tty, &vx);
-                    return;
-                },
-            },
             .wordle => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .daily, false)) {
                 .back_to_menu => continue,
                 .quit => {
@@ -91,6 +84,48 @@ pub fn main() !void {
                 },
             },
             .wordle_unlimited => switch (try wordle.run(allocator, &tty, &vx, &loop, &storage, .unlimited, false)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .stats_wordle => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .wordle)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .stats_wordle_unlimited => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .wordle_unlimited)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .stats_connections => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .connections)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .stats_spelling_bee => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .spelling_bee)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .stats_strands => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .strands)) {
+                .back_to_menu => continue,
+                .quit => {
+                    try flashQuit(&tty, &vx);
+                    return;
+                },
+            },
+            .stats_sudoku => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .sudoku)) {
                 .back_to_menu => continue,
                 .quit => {
                     try flashQuit(&tty, &vx);

@@ -76,15 +76,22 @@ fn configureDb(db: *sqlite.Db) !void {
     _ = try db.pragma(i64, .{}, "busy_timeout", "5000");
 }
 
-const LatestSchemaVersion: i64 = 1;
+const LatestSchemaVersion: i64 = 2;
 
 fn migrate(db: *sqlite.Db) !void {
-    const version = (try db.pragma(i64, .{}, "user_version", null)) orelse 0;
+    var version = (try db.pragma(i64, .{}, "user_version", null)) orelse 0;
     if (version >= LatestSchemaVersion) return;
 
     if (version < 1) {
         try migrateToV1(db);
         _ = try db.pragma(void, .{}, "user_version", "1");
+        version = 1;
+    }
+
+    if (version < 2) {
+        try migrateToV2(db);
+        _ = try db.pragma(void, .{}, "user_version", "2");
+        version = 2;
     }
 }
 
@@ -136,6 +143,18 @@ fn migrateToV1(db: *sqlite.Db) !void {
         \\  puzzle_id INTEGER NOT NULL,
         \\  won INTEGER NOT NULL,
         \\  hints_used INTEGER NOT NULL,
+        \\  played_at INTEGER NOT NULL
+        \\)
+    , .{}, .{});
+}
+
+fn migrateToV2(db: *sqlite.Db) !void {
+    // Wordle Unlimited
+    try db.exec(
+        \\CREATE TABLE IF NOT EXISTS wordle_unlimited_games (
+        \\  id INTEGER PRIMARY KEY,
+        \\  won INTEGER NOT NULL,
+        \\  guesses INTEGER NOT NULL,
         \\  played_at INTEGER NOT NULL
         \\)
     , .{}, .{});

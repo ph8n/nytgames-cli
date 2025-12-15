@@ -145,6 +145,12 @@ pub fn run(
                                 .guesses = if (state.won) @intCast(state.row + 1) else 0,
                                 .played_at = std.time.timestamp(),
                             });
+                        } else {
+                            try storage_stats.saveWordleUnlimitedResult(&storage.db, .{
+                                .won = state.won,
+                                .guesses = if (state.won) @intCast(state.row + 1) else 0,
+                                .played_at = std.time.timestamp(),
+                            });
                         }
                     }
                     continue;

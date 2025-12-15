@@ -13,6 +13,15 @@ pub const Exit = enum {
     quit,
 };
 
+pub const Game = enum {
+    wordle,
+    wordle_unlimited,
+    connections,
+    spelling_bee,
+    strands,
+    sudoku,
+};
+
 const YearMonth = struct {
     year: std.time.epoch.Year,
     month: u8,
@@ -34,6 +43,24 @@ const StatsCache = struct {
 };
 
 pub fn run(
+    allocator: std.mem.Allocator,
+    tty: *vaxis.Tty,
+    vx: *vaxis.Vaxis,
+    loop: *vaxis.Loop(app_event.Event),
+    storage: *storage_db.Storage,
+    game: Game,
+) !Exit {
+    return switch (game) {
+        .wordle => runWordle(allocator, tty, vx, loop, storage),
+        .wordle_unlimited => runWordleUnlimited(allocator, tty, vx, loop, storage),
+        .connections => runStub(allocator, tty, vx, loop, "Connections"),
+        .spelling_bee => runStub(allocator, tty, vx, loop, "Spelling Bee"),
+        .strands => runStub(allocator, tty, vx, loop, "Strands"),
+        .sudoku => runStub(allocator, tty, vx, loop, "Sudoku"),
+    };
+}
+
+fn runWordle(
     allocator: std.mem.Allocator,
     tty: *vaxis.Tty,
     vx: *vaxis.Vaxis,
@@ -94,6 +121,220 @@ pub fn run(
                         clearCache(&cache, allocator);
                     }
                 }
+            },
+        }
+    }
+}
+
+fn runWordleUnlimited(
+    allocator: std.mem.Allocator,
+    tty: *vaxis.Tty,
+    vx: *vaxis.Vaxis,
+    loop: *vaxis.Loop(app_event.Event),
+    storage: *storage_db.Storage,
+) !Exit {
+    while (true) {
+        var frame_arena = std.heap.ArenaAllocator.init(allocator);
+        defer frame_arena.deinit();
+        const frame_allocator = frame_arena.allocator();
+
+        const games = try storage_stats.getWordleUnlimitedRecentGames(frame_allocator, &storage.db, 100);
+        std.mem.reverse(storage_stats.WordleUnlimitedGameRow, games);
+
+        const win = vx.window();
+        win.clear();
+        win.hideCursor();
+
+        const title = "Stats";
+        const subtitle = "q/Esc: back   Ctrl+C: quit";
+        printCentered(win, 0, title, .{ .bold = true });
+        printCentered(win, 1, subtitle, .{ .fg = colors.ui.text_dim });
+
+        try renderWordleUnlimitedRecent(frame_allocator, win, games);
+
+        try vx.render(tty.writer());
+
+        switch (loop.nextEvent()) {
+            .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
+            .key_press => |k| {
+                if (keys.isCtrlC(k)) return .quit;
+                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
+            },
+        }
+    }
+}
+
+fn renderWordleUnlimitedRecent(
+    allocator: std.mem.Allocator,
+    win: vaxis.Window,
+    games: []const storage_stats.WordleUnlimitedGameRow,
+) !void {
+    const header = try std.fmt.allocPrint(allocator, "Wordle Unlimited  (last {d} games)", .{games.len});
+    _ = win.print(&.{.{ .text = header, .style = .{ .bold = true } }}, .{
+        .row_offset = 3,
+        .col_offset = 2,
+        .wrap = .none,
+    });
+
+    const chart_y: u16 = 5;
+    if (chart_y + 11 >= win.height) return;
+
+    const plot = win.child(.{
+        .x_off = 2,
+        .y_off = @intCast(chart_y),
+        .width = if (win.width > 4) win.width - 4 else 0,
+        .height = 12,
+        .border = .{ .where = .all, .glyphs = .single_square, .style = .{ .fg = colors.ui.border } },
+    });
+    plot.clear();
+    if (plot.width < 20 or plot.height < 9) return;
+
+    if (games.len == 0) {
+        const msg = "No games yet";
+        const msg_w = win.gwidth(msg);
+        const col: u16 = if (plot.width > msg_w) @intCast((plot.width - msg_w) / 2) else 0;
+        _ = plot.print(&.{.{ .text = msg, .style = .{ .fg = colors.ui.text_dim } }}, .{
+            .row_offset = 2,
+            .col_offset = col,
+            .wrap = .none,
+        });
+        return;
+    }
+
+    const y_labels = [_][]const u8{ "X", "6", "5", "4", "3", "2", "1" };
+    const y_levels: u8 = 7; // 1..6 plus loss
+    const axis_w: u16 = 2; // label + y-axis line
+    const col_w: u16 = 1;
+    const plot_w: u16 = plot.width - axis_w;
+    const max_cols: u16 = plot_w / col_w;
+    const games_to_draw: u16 = @min(@as(u16, @intCast(games.len)), @min(@as(u16, 100), max_cols));
+    const start_index: usize = games.len - @as(usize, @intCast(games_to_draw));
+
+    const bars_w: u16 = games_to_draw * col_w;
+    const bars_pad: u16 = if (plot_w > bars_w) (plot_w - bars_w) / 2 else 0;
+    const bars_x0: u16 = axis_w + bars_pad;
+
+    // Y labels + axis line
+    for (0..y_levels) |i| {
+        const label = y_labels[i];
+        const row: u16 = @intCast(i);
+        _ = plot.print(&.{.{ .text = label, .style = .{ .fg = colors.ui.text_dim } }}, .{
+            .row_offset = row,
+            .col_offset = 0,
+            .wrap = .none,
+        });
+        plot.writeCell(1, row, .{
+            .char = .{ .grapheme = "│", .width = 1 },
+            .style = .{ .fg = colors.ui.text_dim },
+        });
+    }
+
+    // X axis baseline
+    const axis_row: u16 = y_levels;
+    plot.writeCell(1, axis_row, .{
+        .char = .{ .grapheme = "┼", .width = 1 },
+        .style = .{ .fg = colors.ui.text_dim },
+    });
+    var col: u16 = 2;
+    while (col < plot.width) : (col += 1) {
+        plot.writeCell(col, axis_row, .{
+            .char = .{ .grapheme = "─", .width = 1 },
+            .style = .{ .fg = colors.ui.text_dim },
+        });
+    }
+
+    // Bars
+    for (0..games_to_draw) |i| {
+        const g = games[start_index + @as(usize, @intCast(i))];
+        const x: u16 = bars_x0 + @as(u16, @intCast(i)) * col_w;
+        const won = g.won != 0;
+        const guesses: u8 = @intCast(@max(@as(i64, 0), g.guesses));
+        const height: u8 = if (won) @min(@as(u8, 6), guesses) else 7;
+        const color = if (won) colors.wordle.correct else vaxis.Color{ .rgb = .{ 220, 20, 60 } };
+        const style: vaxis.Style = .{ .fg = color, .bold = true };
+
+        var level: u8 = 0;
+        while (level < height) : (level += 1) {
+            const row_from_bottom: u16 = @as(u16, @intCast(y_levels - 1 - level));
+            plot.writeCell(x, row_from_bottom, .{
+                .char = .{ .grapheme = "█", .width = 1 },
+                .style = style,
+            });
+        }
+    }
+
+    // X ticks: show game number within the last-100 window.
+    const n: usize = @intCast(games_to_draw);
+    const tick1: usize = 1;
+    const tick_mid: usize = @max(@as(usize, 1), (n + 1) / 2);
+    const tick_last: usize = n;
+    const tick_values = [_]usize{ tick1, tick_mid, tick_last };
+    for (tick_values) |tick| {
+        if (tick < 1 or tick > n) continue;
+        const rel: usize = tick - 1;
+        const x: u16 = bars_x0 + @as(u16, @intCast(rel)) * col_w;
+        plot.writeCell(x, axis_row, .{
+            .char = .{ .grapheme = "┬", .width = 1 },
+            .style = .{ .fg = colors.ui.text_dim },
+        });
+
+        const label = try std.fmt.allocPrint(allocator, "{d}", .{tick});
+        const label_w = win.gwidth(label);
+        var label_x: u16 = x;
+        if (label_w > 0) {
+            const shift: u16 = @intCast(label_w - 1);
+            if (label_x >= shift) label_x -= shift else label_x = 0;
+            if (label_x + label_w > plot.width) label_x = plot.width - label_w;
+        }
+
+        _ = plot.print(&.{.{ .text = label, .style = .{ .fg = colors.ui.text_dim } }}, .{
+            .row_offset = axis_row + 1,
+            .col_offset = label_x,
+            .wrap = .none,
+        });
+    }
+}
+
+fn runStub(
+    allocator: std.mem.Allocator,
+    tty: *vaxis.Tty,
+    vx: *vaxis.Vaxis,
+    loop: *vaxis.Loop(app_event.Event),
+    game_label: []const u8,
+) !Exit {
+    while (true) {
+        var frame_arena = std.heap.ArenaAllocator.init(allocator);
+        defer frame_arena.deinit();
+        const frame_allocator = frame_arena.allocator();
+
+        const win = vx.window();
+        win.clear();
+        win.hideCursor();
+
+        const title = "Stats";
+        const subtitle = "q/Esc: back   Ctrl+C: quit";
+        printCentered(win, 0, title, .{ .bold = true });
+        printCentered(win, 1, subtitle, .{ .fg = colors.ui.text_dim });
+
+        const label = try std.fmt.allocPrint(frame_allocator, "{s}", .{game_label});
+        _ = win.print(&.{.{ .text = label, .style = .{ .bold = true } }}, .{
+            .row_offset = 3,
+            .col_offset = 2,
+            .wrap = .none,
+        });
+        _ = win.print(&.{.{ .text = "More stats coming soon.", .style = .{ .fg = colors.ui.text_dim } }}, .{
+            .row_offset = 5,
+            .col_offset = 2,
+            .wrap = .none,
+        });
+
+        try vx.render(tty.writer());
+
+        switch (loop.nextEvent()) {
+            .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
+            .key_press => |k| {
+                if (keys.isCtrlC(k)) return .quit;
+                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
             },
         }
     }
