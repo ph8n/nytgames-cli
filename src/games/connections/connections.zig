@@ -4,6 +4,7 @@ const sqlite = @import("sqlite");
 
 const api_client = @import("../../api/client.zig");
 const colors = @import("../../ui/colors.zig");
+const already_played = @import("../../ui/already_played.zig");
 const app_event = @import("../../ui/event.zig");
 const ui_keys = @import("../../ui/keys.zig");
 const date = @import("../../utils/date.zig");
@@ -140,7 +141,20 @@ pub fn run(
 
     const played_status: storage_stats.PlayedStatus = if (dev_mode) .not_played else try storage_stats.getConnectionsPlayedStatus(&storage.db, today);
     if (!dev_mode and played_status != .not_played) {
-        return runAlreadyPlayedScreen(allocator, tty, vx, loop, today, played_status, direct_launch);
+        const mark: ?already_played.Mark = switch (played_status) {
+            .not_played => null,
+            .won => .won,
+            .lost => .lost,
+        };
+        return switch (try already_played.run(allocator, tty, vx, loop, .{
+            .title = "Connections",
+            .puzzle_date = today,
+            .direct_launch = direct_launch,
+            .mark = mark,
+        })) {
+            .quit => .quit,
+            .back_to_menu => .back_to_menu,
+        };
     }
 
     var parsed = try api_client.fetchConnections(allocator, today);
@@ -846,45 +860,6 @@ fn renderButtonRow(parent: vaxis.Window, rects: [3]ButtonRect, state: *const Gam
             .col_offset = col,
             .wrap = .none,
         });
-    }
-}
-
-fn runAlreadyPlayedScreen(
-    allocator: std.mem.Allocator,
-    tty: *vaxis.Tty,
-    vx: *vaxis.Vaxis,
-    loop: *vaxis.Loop(app_event.Event),
-    puzzle_date: []const u8,
-    status: storage_stats.PlayedStatus,
-    direct_launch: bool,
-) !Exit {
-    const mark = switch (status) {
-        .not_played => " ",
-        .won => "✓",
-        .lost => "X",
-    };
-    while (true) {
-        const win = vx.window();
-        win.clear();
-        win.hideCursor();
-        printCentered(win, 0, "Connections", .{ .bold = true });
-        printCentered(win, 2, "Already played today", .{});
-        printCentered(win, 3, puzzle_date, .{ .fg = colors.ui.text_dim });
-        printCentered(win, 4, mark, .{ .bold = true });
-        printCentered(win, 6, "Press Esc to go back", .{ .fg = colors.ui.text_dim });
-
-        try vx.render(tty.writer());
-
-        switch (loop.nextEvent()) {
-            .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
-            .mouse, .mouse_leave => {},
-            .key_press => |k| {
-                if (ui_keys.isCtrlC(k)) return .quit;
-                if (k.matches(vaxis.Key.escape, .{}) or isEnterKey(k) or k.matches(' ', .{})) {
-                    return if (direct_launch) .quit else .back_to_menu;
-                }
-            },
-        }
     }
 }
 

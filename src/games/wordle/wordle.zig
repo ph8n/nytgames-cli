@@ -3,6 +3,7 @@ const vaxis = @import("vaxis");
 
 const api_client = @import("../../api/client.zig");
 const colors = @import("../../ui/colors.zig");
+const already_played = @import("../../ui/already_played.zig");
 const app_event = @import("../../ui/event.zig");
 const ui_keys = @import("../../ui/keys.zig");
 const date = @import("../../utils/date.zig");
@@ -54,9 +55,22 @@ pub fn run(
 
     if (mode == .daily) {
         if (!dev_mode) {
-            const already_played = try storage_stats.hasPlayedWordle(&storage.db, today[0..]);
-            if (already_played) {
-                return runAlreadyPlayedScreen(allocator, tty, vx, loop, today[0..], direct_launch);
+            const played_status = try storage_stats.getWordlePlayedStatus(&storage.db, today[0..]);
+            if (played_status != .not_played) {
+                const mark: ?already_played.Mark = switch (played_status) {
+                    .not_played => null,
+                    .won => .won,
+                    .lost => .lost,
+                };
+                return switch (try already_played.run(allocator, tty, vx, loop, .{
+                    .title = "Wordle",
+                    .puzzle_date = today[0..],
+                    .direct_launch = direct_launch,
+                    .mark = mark,
+                })) {
+                    .quit => .quit,
+                    .back_to_menu => .back_to_menu,
+                };
             }
         }
 
@@ -548,38 +562,6 @@ fn glyphUpper(letter: u8) []const u8 {
     if (letter < 'A' or letter > 'Z') return " ";
     const i: usize = @intCast(letter - 'A');
     return alphabet[i .. i + 1];
-}
-
-fn runAlreadyPlayedScreen(
-    allocator: std.mem.Allocator,
-    tty: *vaxis.Tty,
-    vx: *vaxis.Vaxis,
-    loop: *vaxis.Loop(app_event.Event),
-    puzzle_date: []const u8,
-    direct_launch: bool,
-) !Exit {
-    while (true) {
-        const win = vx.window();
-        win.clear();
-        win.hideCursor();
-        _ = win.print(&.{.{ .text = "Wordle" }}, .{ .row_offset = 0, .col_offset = 2, .wrap = .none });
-        _ = win.print(&.{.{ .text = "Already played today!" }}, .{ .row_offset = 2, .col_offset = 2, .wrap = .none });
-        _ = win.print(&.{.{ .text = puzzle_date }}, .{ .row_offset = 3, .col_offset = 2, .wrap = .none });
-        _ = win.print(&.{.{ .text = "Press Esc to go back" }}, .{ .row_offset = 5, .col_offset = 2, .wrap = .none });
-
-        try vx.render(tty.writer());
-
-        switch (loop.nextEvent()) {
-            .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
-            .mouse, .mouse_leave => {},
-            .key_press => |k| {
-                if (ui_keys.isCtrlC(k)) return .quit;
-                if (k.matches(vaxis.Key.escape, .{}) or isEnterKey(k) or k.matches(' ', .{})) {
-                    return if (direct_launch) .quit else .back_to_menu;
-                }
-            },
-        }
-    }
 }
 
 test {
