@@ -384,9 +384,19 @@ fn renderWordleMonth(
     const y_labels = [_][]const u8{ "X", "6", "5", "4", "3", "2", "1" };
     const axis_w: u16 = 2; // label + y-axis line
     const plot_w: u16 = plot.width - axis_w;
-    const col_w: u16 = 2;
+    const days_in_month_u16: u16 = @intCast(cache.days_in_month);
+
+    // Prefer 2 columns per day, but fall back to 1 when the terminal is too narrow
+    // so we can still show the full month without cutting off the last days.
+    var col_w: u16 = 2;
+    if (plot_w < days_in_month_u16 * col_w) col_w = 1;
+
     const max_cols: u16 = plot_w / col_w;
-    const days_to_draw: u16 = @min(@as(u16, cache.days_in_month), max_cols);
+    const days_to_draw: u16 = @min(days_in_month_u16, max_cols);
+
+    const bars_w: u16 = days_to_draw * col_w;
+    const bars_pad: u16 = if (plot_w > bars_w) (plot_w - bars_w) / 2 else 0;
+    const bars_x0: u16 = axis_w + bars_pad;
 
     // Y labels + axis line
     for (0..y_levels) |i| {
@@ -420,7 +430,7 @@ fn renderWordleMonth(
     // Bars + weekly ticks
     for (0..days_to_draw) |d0| {
         const day_index: usize = @intCast(d0);
-        const x: u16 = axis_w + @as(u16, @intCast(d0)) * col_w;
+        const x: u16 = bars_x0 + @as(u16, @intCast(d0)) * col_w;
         if (cache.games[day_index]) |g| {
             const height: u8 = if (g.won) @min(@as(u8, 6), g.guesses) else 7;
             const color = if (g.won) colors.wordle.correct else vaxis.Color{ .rgb = .{ 220, 20, 60 } };
@@ -444,9 +454,16 @@ fn renderWordleMonth(
 
             const day_num: u8 = @intCast(day_index + 1);
             const label = try std.fmt.allocPrint(allocator, "{d}", .{day_num});
+            const label_w = win.gwidth(label);
+            var label_x: u16 = x;
+            if (label_w > 0) {
+                const shift: u16 = @intCast(label_w - 1);
+                if (label_x >= shift) label_x -= shift else label_x = 0;
+                if (label_x + label_w > plot.width) label_x = plot.width - label_w;
+            }
             _ = plot.print(&.{.{ .text = label, .style = .{ .fg = colors.ui.text_dim } }}, .{
                 .row_offset = axis_row + 1,
-                .col_offset = x,
+                .col_offset = label_x,
                 .wrap = .none,
             });
         }
