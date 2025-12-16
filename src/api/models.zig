@@ -22,6 +22,16 @@ pub const ConnectionsData = struct {
     };
 };
 
+pub const SpellingBeeData = struct {
+    id: i32,
+    center_letter: []const u8,
+    outer_letters: []const u8,
+    pangrams: []const []const u8,
+    answers: []const []const u8,
+    print_date: []const u8,
+    editor: ?[]const u8 = null,
+};
+
 test {
     std.testing.refAllDecls(@This());
 }

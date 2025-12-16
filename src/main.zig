@@ -5,8 +5,7 @@ const app_event = @import("ui/event.zig");
 const menu = @import("ui/menu.zig");
 const stats = @import("ui/stats.zig");
 const connections = @import("games/connections/connections.zig");
-const mini_crossword = @import("games/mini_crossword/mini_crossword.zig");
-const stub_game = @import("games/stub.zig");
+const spelling_bee = @import("games/spelling_bee/spelling_bee.zig");
 const wordle = @import("games/wordle/wordle.zig");
 const storage_db = @import("storage/db.zig");
 
@@ -22,6 +21,7 @@ pub fn main() !void {
     var direct_wordle = false;
     var wordle_unlimited = false;
     var direct_connections = false;
+    var direct_spelling_bee = false;
     var positional: [2][]const u8 = undefined;
     var positional_len: usize = 0;
 
@@ -35,7 +35,7 @@ pub fn main() !void {
                 var stderr_writer = std.fs.File.stderr().writer(&.{});
                 try stderr_writer.interface.print("too many arguments\n", .{});
                 try stderr_writer.interface.print(
-                    "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
+                    "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections | spelling-bee]\n",
                     .{args[0]},
                 );
                 return;
@@ -54,7 +54,7 @@ pub fn main() !void {
                     var stderr_writer = std.fs.File.stderr().writer(&.{});
                     try stderr_writer.interface.print("unknown option: {s}\n", .{positional[1]});
                     try stderr_writer.interface.print(
-                        "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
+                        "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections | spelling-bee]\n",
                         .{args[0]},
                     );
                     return;
@@ -65,11 +65,13 @@ pub fn main() !void {
             wordle_unlimited = true;
         } else if (std.mem.eql(u8, positional[0], "connections")) {
             direct_connections = true;
+        } else if (std.mem.eql(u8, positional[0], "spelling-bee") or std.mem.eql(u8, positional[0], "bee")) {
+            direct_spelling_bee = true;
         } else {
             var stderr_writer = std.fs.File.stderr().writer(&.{});
             try stderr_writer.interface.print("unknown command: {s}\n", .{positional[0]});
             try stderr_writer.interface.print(
-                "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
+                "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections | spelling-bee]\n",
                 .{args[0]},
             );
             return;
@@ -117,6 +119,16 @@ pub fn main() !void {
         }
     }
 
+    if (direct_spelling_bee) {
+        switch (try spelling_bee.run(allocator, &tty, &vx, &loop, &storage, dev_mode, true)) {
+            .quit => {
+                try flashQuit(&tty, &vx);
+                return;
+            },
+            .back_to_menu => {},
+        }
+    }
+
     while (true) {
         switch (try menu.run(allocator, &tty, &vx, &loop, &storage, dev_mode)) {
             .quit => {
@@ -144,28 +156,7 @@ pub fn main() !void {
                     return;
                 },
             },
-            .spelling_bee => switch (try stub_game.run(allocator, &tty, &vx, &loop, "Spelling Bee")) {
-                .back_to_menu => continue,
-                .quit => {
-                    try flashQuit(&tty, &vx);
-                    return;
-                },
-            },
-            .strands => switch (try stub_game.run(allocator, &tty, &vx, &loop, "Strands")) {
-                .back_to_menu => continue,
-                .quit => {
-                    try flashQuit(&tty, &vx);
-                    return;
-                },
-            },
-            .mini => switch (try mini_crossword.run(allocator, &tty, &vx, &loop)) {
-                .back_to_menu => continue,
-                .quit => {
-                    try flashQuit(&tty, &vx);
-                    return;
-                },
-            },
-            .sudoku => switch (try stub_game.run(allocator, &tty, &vx, &loop, "Sudoku")) {
+            .spelling_bee => switch (try spelling_bee.run(allocator, &tty, &vx, &loop, &storage, dev_mode, false)) {
                 .back_to_menu => continue,
                 .quit => {
                     try flashQuit(&tty, &vx);
@@ -194,27 +185,6 @@ pub fn main() !void {
                 },
             },
             .stats_spelling_bee => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .spelling_bee)) {
-                .back_to_menu => continue,
-                .quit => {
-                    try flashQuit(&tty, &vx);
-                    return;
-                },
-            },
-            .stats_strands => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .strands)) {
-                .back_to_menu => continue,
-                .quit => {
-                    try flashQuit(&tty, &vx);
-                    return;
-                },
-            },
-            .stats_mini => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .mini)) {
-                .back_to_menu => continue,
-                .quit => {
-                    try flashQuit(&tty, &vx);
-                    return;
-                },
-            },
-            .stats_sudoku => switch (try stats.run(allocator, &tty, &vx, &loop, &storage, .sudoku)) {
                 .back_to_menu => continue,
                 .quit => {
                     try flashQuit(&tty, &vx);

@@ -25,25 +25,6 @@ pub const spelling_bee = struct {
     pub const pangram = Color{ .rgb = .{ 247, 218, 33 } }; // #f7da21 - Pangram highlight
 };
 
-// Strands colors
-pub const strands = struct {
-    pub const theme = Color{ .rgb = .{ 248, 205, 5 } }; // #f8cd05 - Theme word (yellow)
-    pub const found = Color{ .rgb = .{ 175, 200, 233 } }; // #afc8e9 - Found word (blue)
-    pub const spangram = Color{ .rgb = .{ 248, 205, 5 } }; // #f8cd05 - Spangram (yellow)
-    pub const hint = Color{ .rgb = .{ 135, 206, 235 } }; // #87ceeb - Hint indicator
-};
-
-// Sudoku colors
-pub const sudoku = struct {
-    pub const selected = Color{ .rgb = .{ 187, 222, 251 } }; // #bbdefb - Selected cell
-    pub const error_cell = Color{ .rgb = .{ 255, 205, 210 } }; // #ffcdd2 - Error highlight
-    pub const input = Color{ .rgb = .{ 25, 118, 210 } }; // #1976d2 - User input text
-    pub const given = Color{ .rgb = .{ 50, 50, 50 } }; // #323232 - Pre-filled numbers
-    pub const same_number = Color{ .rgb = .{ 195, 215, 234 } }; // #c3d7ea - Same number highlight
-    pub const box_border = Color{ .rgb = .{ 52, 52, 52 } }; // #343434 - 3x3 box borders
-    pub const cell_border = Color{ .rgb = .{ 189, 189, 189 } }; // #bdbdbd - Cell borders
-};
-
 // Common UI colors
 pub const ui = struct {
     pub const text = Color.default; // Primary text - use terminal default

@@ -6,6 +6,7 @@ const colors = @import("colors.zig");
 const keys = @import("keys.zig");
 const date = @import("../utils/date.zig");
 const storage_db = @import("../storage/db.zig");
+const storage_spelling_bee = @import("../storage/spelling_bee.zig");
 const storage_stats = @import("../storage/stats.zig");
 
 pub const Exit = enum {
@@ -18,9 +19,6 @@ pub const Game = enum {
     wordle_unlimited,
     connections,
     spelling_bee,
-    strands,
-    mini,
-    sudoku,
 };
 
 const YearMonth = struct {
@@ -55,11 +53,90 @@ pub fn run(
         .wordle => runWordle(allocator, tty, vx, loop, storage),
         .wordle_unlimited => runWordleUnlimited(allocator, tty, vx, loop, storage),
         .connections => runStub(allocator, tty, vx, loop, "Connections"),
-        .spelling_bee => runStub(allocator, tty, vx, loop, "Spelling Bee"),
-        .strands => runStub(allocator, tty, vx, loop, "Strands"),
-        .mini => runStub(allocator, tty, vx, loop, "Mini"),
-        .sudoku => runStub(allocator, tty, vx, loop, "Sudoku"),
+        .spelling_bee => runSpellingBee(allocator, tty, vx, loop, storage),
     };
+}
+
+fn runSpellingBee(
+    allocator: std.mem.Allocator,
+    tty: *vaxis.Tty,
+    vx: *vaxis.Vaxis,
+    loop: *vaxis.Loop(app_event.Event),
+    storage: *storage_db.Storage,
+) !Exit {
+    const today_date = try date.todayLocal();
+    var today_buf: date.YyyyMmDd = undefined;
+    date.formatYYYYMMDD(&today_buf, today_date);
+    const today = today_buf[0..];
+
+    while (true) {
+        var frame_arena = std.heap.ArenaAllocator.init(allocator);
+        defer frame_arena.deinit();
+        const frame_allocator = frame_arena.allocator();
+
+        const win = vx.window();
+        win.clear();
+        win.hideCursor();
+
+        const title = "Stats";
+        const subtitle = "q/Esc: back   Ctrl+C: quit";
+        printCentered(win, 0, title, .{ .bold = true });
+        printCentered(win, 1, subtitle, .{ .fg = colors.ui.text_dim });
+
+        _ = win.print(&.{.{ .text = "Spelling Bee", .style = .{ .bold = true } }}, .{
+            .row_offset = 3,
+            .col_offset = 2,
+            .wrap = .none,
+        });
+
+        const progress = try storage_spelling_bee.getProgress(&storage.db, today);
+        const today_line = if (progress) |p|
+            try std.fmt.allocPrint(
+                frame_allocator,
+                "Today ({s}): {d} pts  •  {d} words  •  {d} pangrams",
+                .{ today, p.points, p.words_found, p.pangrams_found },
+            )
+        else
+            try std.fmt.allocPrint(frame_allocator, "Today ({s}): not started", .{today});
+
+        _ = win.print(&.{.{ .text = today_line, .style = .{ .fg = colors.ui.text_dim } }}, .{
+            .row_offset = 5,
+            .col_offset = 2,
+            .wrap = .none,
+        });
+
+        const recent = try storage_spelling_bee.getRecentProgressAlloc(frame_allocator, &storage.db, 7);
+        if (recent.len > 0) {
+            _ = win.print(&.{.{ .text = "Recent", .style = .{ .bold = true } }}, .{
+                .row_offset = 7,
+                .col_offset = 2,
+                .wrap = .none,
+            });
+            for (recent, 0..) |row, i| {
+                const line = try std.fmt.allocPrint(
+                    frame_allocator,
+                    "{s}  {d} pts  •  {d} words  •  {d} pangrams",
+                    .{ row.puzzle_date.data, row.points, row.words_found, row.pangrams_found },
+                );
+                _ = win.print(&.{.{ .text = line, .style = .{} }}, .{
+                    .row_offset = 8 + @as(u16, @intCast(i)),
+                    .col_offset = 2,
+                    .wrap = .none,
+                });
+            }
+        }
+
+        try vx.render(tty.writer());
+
+        switch (loop.nextEvent()) {
+            .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
+            .key_press => |k| {
+                if (keys.isCtrlC(k)) return .quit;
+                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
+            },
+            .mouse, .mouse_leave => {},
+        }
+    }
 }
 
 fn runWordle(

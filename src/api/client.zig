@@ -89,6 +89,47 @@ pub fn fetchConnections(allocator: std.mem.Allocator, date: []const u8) !std.jso
     });
 }
 
+pub fn fetchSpellingBee(allocator: std.mem.Allocator, date: []const u8) !std.json.Parsed(models.SpellingBeeData) {
+    try curl.globalInit();
+    defer curl.globalDeinit();
+
+    var ca_bundle = try curl.allocCABundle(allocator);
+    defer ca_bundle.deinit();
+
+    var easy = try curl.Easy.init(.{
+        .ca_bundle = ca_bundle,
+        .default_user_agent = "nytg-cli",
+    });
+    defer easy.deinit();
+
+    try easy.setFollowLocation(true);
+    try easy.setMaxRedirects(3);
+
+    const url_unterminated = try std.fmt.allocPrint(
+        allocator,
+        "https://www.nytimes.com/svc/spelling-bee/v1/{s}.json",
+        .{date},
+    );
+    defer allocator.free(url_unterminated);
+
+    const url = try allocator.dupeZ(u8, url_unterminated);
+    defer allocator.free(url);
+
+    var body = std.Io.Writer.Allocating.init(allocator);
+    defer body.deinit();
+
+    const resp = try easy.fetch(url, .{
+        .method = .GET,
+        .writer = &body.writer,
+    });
+    if (resp.status_code != 200) return error.UnexpectedStatusCode;
+
+    return std.json.parseFromSlice(models.SpellingBeeData, allocator, body.written(), .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    });
+}
+
 test {
     std.testing.refAllDecls(@This());
 }

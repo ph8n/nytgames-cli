@@ -13,16 +13,10 @@ pub const Choice = enum {
     wordle_unlimited,
     connections,
     spelling_bee,
-    strands,
-    mini,
-    sudoku,
     stats_wordle,
     stats_wordle_unlimited,
     stats_connections,
     stats_spelling_bee,
-    stats_strands,
-    stats_mini,
-    stats_sudoku,
     quit,
 };
 
@@ -30,9 +24,6 @@ const Row = enum(u4) {
     wordle,
     connections,
     spelling_bee,
-    strands,
-    mini,
-    sudoku,
     stats,
     quit,
 };
@@ -52,9 +43,6 @@ const stats_options = [_]StatsOption{
     .{ .label = "Wordle Unlimited", .choice = .stats_wordle_unlimited },
     .{ .label = "Connections", .choice = .stats_connections },
     .{ .label = "Spelling Bee", .choice = .stats_spelling_bee },
-    .{ .label = "Strands", .choice = .stats_strands },
-    .{ .label = "Mini", .choice = .stats_mini },
-    .{ .label = "Sudoku", .choice = .stats_sudoku },
 };
 
 pub fn run(
@@ -129,18 +117,12 @@ pub fn run(
         const label_wordle = "Wordle";
         const label_connections = "Connections";
         const label_spelling_bee = "Spelling Bee";
-        const label_strands = "Strands";
-        const label_mini = "Mini";
-        const label_sudoku = "Sudoku";
         const label_stats = "Stats";
         const label_quit = "Quit";
 
         var label_w: u16 = win.gwidth(label_wordle);
         label_w = @max(label_w, win.gwidth(label_connections));
         label_w = @max(label_w, win.gwidth(label_spelling_bee));
-        label_w = @max(label_w, win.gwidth(label_strands));
-        label_w = @max(label_w, win.gwidth(label_mini));
-        label_w = @max(label_w, win.gwidth(label_sudoku));
         label_w = @max(label_w, win.gwidth(label_stats));
         label_w = @max(label_w, win.gwidth(label_quit));
 
@@ -201,21 +183,18 @@ pub fn run(
         );
 
         renderSingleTodayRow(win, block_x, right_region_x, start_y + 2, label_spelling_bee, selected_row == .spelling_bee);
-        renderSingleTodayRow(win, block_x, right_region_x, start_y + 3, label_strands, selected_row == .strands);
-        renderSingleTodayRow(win, block_x, right_region_x, start_y + 4, label_mini, selected_row == .mini);
-        renderSingleTodayRow(win, block_x, right_region_x, start_y + 5, label_sudoku, selected_row == .sudoku);
 
         renderStatsRow(
             win,
             block_x,
             right_region_x,
-            start_y + 6,
+            start_y + 3,
             label_stats,
             selected_row,
             selected_stats,
             stats_window_start,
         );
-        renderSimpleRow(win, block_x, start_y + 7, label_quit, selected_row == .quit);
+        renderSimpleRow(win, block_x, start_y + 4, label_quit, selected_row == .quit);
 
         try vx.render(tty.writer());
 
@@ -250,9 +229,6 @@ pub fn run(
                         },
                         .connections => .connections,
                         .spelling_bee => .spelling_bee,
-                        .strands => .strands,
-                        .mini => .mini,
-                        .sudoku => .sudoku,
                         .stats => stats_options[selected_stats].choice,
                         .quit => .quit,
                     };
