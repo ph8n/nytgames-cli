@@ -284,6 +284,13 @@ pub const WordleGameRow = struct {
     guesses: i64,
 };
 
+pub const WordleGameFullRow = struct {
+    puzzle_date: sqlite.Text,
+    won: i64,
+    guesses: i64,
+    played_at: i64,
+};
+
 pub fn getWordleGamesBetween(
     allocator: std.mem.Allocator,
     db: *sqlite.Db,
@@ -301,6 +308,20 @@ pub fn getWordleGamesBetween(
     return try stmt.all(WordleGameRow, allocator, .{}, .{ start_date, end_date });
 }
 
+pub fn getWordleGamesAllAlloc(
+    allocator: std.mem.Allocator,
+    db: *sqlite.Db,
+) ![]WordleGameFullRow {
+    var stmt = try db.prepare(
+        \\SELECT puzzle_date, won, guesses, played_at
+        \\FROM wordle_games
+        \\ORDER BY puzzle_date ASC
+    );
+    defer stmt.deinit();
+
+    return try stmt.all(WordleGameFullRow, allocator, .{}, .{});
+}
+
 pub fn getWordleFirstPlayedDateAlloc(allocator: std.mem.Allocator, db: *sqlite.Db) !?sqlite.Text {
     return (try db.oneAlloc(
         sqlite.Text,
@@ -309,6 +330,47 @@ pub fn getWordleFirstPlayedDateAlloc(allocator: std.mem.Allocator, db: *sqlite.D
         .{},
         .{},
     ));
+}
+
+pub const ConnectionsGameFullRow = struct {
+    puzzle_date: sqlite.Text,
+    won: i64,
+    mistakes: i64,
+    played_at: i64,
+};
+
+pub fn getConnectionsGamesAllAlloc(
+    allocator: std.mem.Allocator,
+    db: *sqlite.Db,
+) ![]ConnectionsGameFullRow {
+    var stmt = try db.prepare(
+        \\SELECT puzzle_date, won, mistakes, played_at
+        \\FROM connections_games
+        \\ORDER BY puzzle_date ASC
+    );
+    defer stmt.deinit();
+
+    return try stmt.all(ConnectionsGameFullRow, allocator, .{}, .{});
+}
+
+pub const WordleUnlimitedGameFullRow = struct {
+    won: i64,
+    guesses: i64,
+    played_at: i64,
+};
+
+pub fn getWordleUnlimitedGamesAllAlloc(
+    allocator: std.mem.Allocator,
+    db: *sqlite.Db,
+) ![]WordleUnlimitedGameFullRow {
+    var stmt = try db.prepare(
+        \\SELECT won, guesses, played_at
+        \\FROM wordle_unlimited_games
+        \\ORDER BY played_at ASC, id ASC
+    );
+    defer stmt.deinit();
+
+    return try stmt.all(WordleUnlimitedGameFullRow, allocator, .{}, .{});
 }
 
 test {
