@@ -122,7 +122,6 @@ jobs:
           ./scripts/build-deb.sh --version "${version}" --arch arm64 --bin dist/_linux_arm64/nytgames --out "dist/nytgames-cli_${version}_linux_arm64.deb"
 
           ./scripts/build-rpm.sh --version "${version}" --arch amd64 --tar "dist/nytgames-cli_${version}_linux_amd64.tar.gz" --out "dist/nytgames-cli_${version}_linux_amd64.rpm"
-          ./scripts/build-rpm.sh --version "${version}" --arch arm64 --tar "dist/nytgames-cli_${version}_linux_arm64.tar.gz" --out "dist/nytgames-cli_${version}_linux_arm64.rpm"
 
           # Final checksums include all artifacts (excluding checksums.txt itself).
           (cd dist && sha256sum nytgames-cli_*.tar.gz nytgames-cli_*.deb nytgames-cli_*.rpm nytgames-cli.rb > checksums.txt)
