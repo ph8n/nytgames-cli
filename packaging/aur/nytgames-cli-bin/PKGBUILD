@@ -1,0 +1,24 @@
+# Maintainer: ph8n
+
+pkgname=nytgames-cli-bin
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="CLI tool to play NYT Games in your terminal"
+arch=('x86_64' 'aarch64')
+url="https://github.com/ph8n/nytgames-cli"
+license=('MIT')
+provides=('nytgames-cli')
+conflicts=('nytgames-cli')
+
+_pkgver="${pkgver}"
+source_x86_64=("${url}/releases/download/v${_pkgver}/nytgames-cli_${_pkgver}_linux_amd64.tar.gz")
+source_aarch64=("${url}/releases/download/v${_pkgver}/nytgames-cli_${_pkgver}_linux_arm64.tar.gz")
+
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+  install -Dm755 "nytgames" "${pkgdir}/usr/bin/nytgames"
+  install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
+

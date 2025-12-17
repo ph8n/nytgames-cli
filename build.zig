@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const version = b.option([]const u8, "version", "Application version") orelse "0.0.0";
 
     // Create executable module (for ZLS support)
     const exe_mod = b.createModule(.{
@@ -10,6 +11,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", version);
+    exe_mod.addOptions("build_options", build_options);
 
     // Add vaxis dependency to module
     const vaxis = b.dependency("vaxis", .{

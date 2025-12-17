@@ -1,5 +1,6 @@
 const std = @import("std");
 const vaxis = @import("vaxis");
+const build_options = @import("build_options");
 
 const app_event = @import("ui/event.zig");
 const menu = @import("ui/menu.zig");
@@ -25,6 +26,14 @@ pub fn main() !void {
 
     if (args.len >= 2) {
         for (args[1..]) |arg| {
+            if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "help")) {
+                try printUsage(args[0]);
+                return;
+            }
+            if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "version")) {
+                try printVersion(args[0]);
+                return;
+            }
             if (std.mem.eql(u8, arg, "--dev") or std.mem.eql(u8, arg, "dev")) {
                 dev_mode = true;
                 continue;
@@ -32,10 +41,7 @@ pub fn main() !void {
             if (positional_len >= positional.len) {
                 var stderr_writer = std.fs.File.stderr().writer(&.{});
                 try stderr_writer.interface.print("too many arguments\n", .{});
-                try stderr_writer.interface.print(
-                    "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
-                    .{args[0]},
-                );
+                try printUsage(args[0]);
                 return;
             }
             positional[positional_len] = arg;
@@ -51,10 +57,7 @@ pub fn main() !void {
                 if (!wordle_unlimited) {
                     var stderr_writer = std.fs.File.stderr().writer(&.{});
                     try stderr_writer.interface.print("unknown option: {s}\n", .{positional[1]});
-                    try stderr_writer.interface.print(
-                        "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
-                        .{args[0]},
-                    );
+                    try printUsage(args[0]);
                     return;
                 }
             }
@@ -66,10 +69,7 @@ pub fn main() !void {
         } else {
             var stderr_writer = std.fs.File.stderr().writer(&.{});
             try stderr_writer.interface.print("unknown command: {s}\n", .{positional[0]});
-            try stderr_writer.interface.print(
-                "usage: {s} [--dev] [wordle [unlimited] | unlimited | connections]\n",
-                .{args[0]},
-            );
+            try printUsage(args[0]);
             return;
         }
     }
@@ -174,4 +174,17 @@ fn flashQuit(tty: *vaxis.Tty, vx: *vaxis.Vaxis) !void {
     _ = win.print(&.{.{ .text = "Saving..." }}, .{ .row_offset = 0, .col_offset = 2, .wrap = .none });
     try vx.render(tty.writer());
     std.Thread.sleep(120 * std.time.ns_per_ms);
+}
+
+fn printUsage(argv0: []const u8) !void {
+    var stderr_writer = std.fs.File.stderr().writer(&.{});
+    try stderr_writer.interface.print(
+        \\usage: {s} [--help] [--version] [--dev] [wordle [unlimited] | unlimited | connections]
+        \\
+    , .{argv0});
+}
+
+fn printVersion(argv0: []const u8) !void {
+    var stdout_writer = std.fs.File.stdout().writer(&.{});
+    try stdout_writer.interface.print("{s} {s}\n", .{ argv0, build_options.version });
 }

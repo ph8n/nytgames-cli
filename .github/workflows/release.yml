@@ -1,0 +1,141 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 0.1.0). Creates tag vX.Y.Z if needed."
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-tarballs:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-linux-musl
+            dist_os: linux
+            dist_arch: amd64
+          - runner: ubuntu-latest
+            target: aarch64-linux-musl
+            dist_os: linux
+            dist_arch: arm64
+          - runner: macos-latest
+            target: x86_64-macos
+            dist_os: darwin
+            dist_arch: amd64
+          - runner: macos-latest
+            target: aarch64-macos
+            dist_os: darwin
+            dist_arch: arm64
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.15.1
+
+      - name: Resolve version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw="${{ github.event.inputs.version || github.ref_name }}"
+          if [[ "$raw" != v* ]]; then tag="v$raw"; else tag="$raw"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+          zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.target }} -Dversion="${version}"
+
+          mkdir -p dist
+          cp zig-out/bin/nytgames dist/nytgames
+          cp LICENSE dist/LICENSE
+          cp README.md dist/README.md
+
+          tarball="nytgames-cli_${version}_${{ matrix.dist_os }}_${{ matrix.dist_arch }}.tar.gz"
+          tar -C dist -czf "${tarball}" nytgames LICENSE README.md
+          echo "built ${tarball}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs-${{ matrix.dist_os }}-${{ matrix.dist_arch }}
+          path: nytgames-cli_*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build-tarballs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: tarballs-*
+          merge-multiple: true
+
+      - name: Resolve version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw="${{ github.event.inputs.version || github.ref_name }}"
+          if [[ "$raw" != v* ]]; then tag="v$raw"; else tag="$raw"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Linux packages + Homebrew formula
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+
+          ls -la dist
+
+          # Initial checksums (tarballs only) used for generating the brew formula.
+          (cd dist && sha256sum nytgames-cli_*.tar.gz > checksums.txt)
+
+          ./scripts/generate-homebrew-formula.sh --version "${version}" --checksums dist/checksums.txt --out dist/nytgames-cli.rb
+
+          sudo apt-get update -y
+          sudo apt-get install -y rpm
+
+          mkdir -p dist/_linux_amd64 dist/_linux_arm64
+
+          tar -xzf "dist/nytgames-cli_${version}_linux_amd64.tar.gz" -C dist/_linux_amd64
+          tar -xzf "dist/nytgames-cli_${version}_linux_arm64.tar.gz" -C dist/_linux_arm64
+
+          ./scripts/build-deb.sh --version "${version}" --arch amd64 --bin dist/_linux_amd64/nytgames --out "dist/nytgames-cli_${version}_linux_amd64.deb"
+          ./scripts/build-deb.sh --version "${version}" --arch arm64 --bin dist/_linux_arm64/nytgames --out "dist/nytgames-cli_${version}_linux_arm64.deb"
+
+          ./scripts/build-rpm.sh --version "${version}" --arch amd64 --tar "dist/nytgames-cli_${version}_linux_amd64.tar.gz" --out "dist/nytgames-cli_${version}_linux_amd64.rpm"
+          ./scripts/build-rpm.sh --version "${version}" --arch arm64 --tar "dist/nytgames-cli_${version}_linux_arm64.tar.gz" --out "dist/nytgames-cli_${version}_linux_arm64.rpm"
+
+          # Final checksums include all artifacts (excluding checksums.txt itself).
+          (cd dist && sha256sum nytgames-cli_*.tar.gz nytgames-cli_*.deb nytgames-cli_*.rpm nytgames-cli.rb > checksums.txt)
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            dist/nytgames-cli_*.tar.gz
+            dist/nytgames-cli_*.deb
+            dist/nytgames-cli_*.rpm
+            dist/nytgames-cli.rb
+            dist/checksums.txt
