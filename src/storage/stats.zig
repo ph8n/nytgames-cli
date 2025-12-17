@@ -173,6 +173,39 @@ pub fn getConnectionsDailyStreak(db: *sqlite.Db, today: date.Date) !u32 {
     return streak;
 }
 
+pub const ConnectionsGameRow = struct {
+    puzzle_date: sqlite.Text,
+    won: i64,
+    mistakes: i64,
+};
+
+pub fn getConnectionsGamesBetween(
+    allocator: std.mem.Allocator,
+    db: *sqlite.Db,
+    start_date: []const u8,
+    end_date: []const u8,
+) ![]ConnectionsGameRow {
+    var stmt = try db.prepare(
+        \\SELECT puzzle_date, won, mistakes
+        \\FROM connections_games
+        \\WHERE puzzle_date BETWEEN ? AND ?
+        \\ORDER BY puzzle_date ASC
+    );
+    defer stmt.deinit();
+
+    return try stmt.all(ConnectionsGameRow, allocator, .{}, .{ start_date, end_date });
+}
+
+pub fn getConnectionsFirstPlayedDateAlloc(allocator: std.mem.Allocator, db: *sqlite.Db) !?sqlite.Text {
+    return (try db.oneAlloc(
+        sqlite.Text,
+        allocator,
+        "SELECT MIN(puzzle_date) FROM connections_games",
+        .{},
+        .{},
+    ));
+}
+
 pub fn saveWordleResult(db: *sqlite.Db, result: WordleResult) !void {
     // If the date already exists, ignore to keep "played today" idempotent.
     try db.exec(
