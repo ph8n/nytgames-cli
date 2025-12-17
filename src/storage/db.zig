@@ -76,7 +76,7 @@ fn configureDb(db: *sqlite.Db) !void {
     _ = try db.pragma(i64, .{}, "busy_timeout", "5000");
 }
 
-const LatestSchemaVersion: i64 = 3;
+const LatestSchemaVersion: i64 = 2;
 
 fn migrate(db: *sqlite.Db) !void {
     var version = (try db.pragma(i64, .{}, "user_version", null)) orelse 0;
@@ -92,12 +92,6 @@ fn migrate(db: *sqlite.Db) !void {
         try migrateToV2(db);
         _ = try db.pragma(void, .{}, "user_version", "2");
         version = 2;
-    }
-
-    if (version < 3) {
-        try migrateToV3(db);
-        _ = try db.pragma(void, .{}, "user_version", "3");
-        version = 3;
     }
 }
 
@@ -125,22 +119,6 @@ fn migrateToV1(db: *sqlite.Db) !void {
         \\  played_at INTEGER NOT NULL
         \\)
     , .{}, .{});
-
-    // Spelling Bee
-    try db.exec(
-        \\CREATE TABLE IF NOT EXISTS spelling_bee_games (
-        \\  id INTEGER PRIMARY KEY,
-        \\  puzzle_date TEXT NOT NULL UNIQUE,
-        \\  puzzle_id INTEGER NOT NULL,
-        \\  words_found INTEGER NOT NULL,
-        \\  total_words INTEGER NOT NULL,
-        \\  pangrams_found INTEGER NOT NULL,
-        \\  points INTEGER NOT NULL,
-        \\  max_points INTEGER NOT NULL,
-        \\  played_at INTEGER NOT NULL
-        \\)
-    , .{}, .{});
-
 }
 
 fn migrateToV2(db: *sqlite.Db) !void {
@@ -152,44 +130,6 @@ fn migrateToV2(db: *sqlite.Db) !void {
         \\  guesses INTEGER NOT NULL,
         \\  played_at INTEGER NOT NULL
         \\)
-    , .{}, .{});
-}
-
-fn migrateToV3(db: *sqlite.Db) !void {
-    // Spelling Bee progress (resumable)
-    try db.exec(
-        \\CREATE TABLE IF NOT EXISTS spelling_bee_progress (
-        \\  puzzle_date TEXT NOT NULL PRIMARY KEY,
-        \\  puzzle_id INTEGER NOT NULL,
-        \\  center_letter TEXT NOT NULL,
-        \\  outer_letters TEXT NOT NULL,
-        \\  words_found INTEGER NOT NULL DEFAULT 0,
-        \\  total_words INTEGER,
-        \\  pangrams_found INTEGER NOT NULL DEFAULT 0,
-        \\  points INTEGER NOT NULL DEFAULT 0,
-        \\  max_points INTEGER,
-        \\  started_at INTEGER NOT NULL,
-        \\  updated_at INTEGER NOT NULL,
-        \\  completed_at INTEGER
-        \\)
-    , .{}, .{});
-
-    try db.exec(
-        \\CREATE TABLE IF NOT EXISTS spelling_bee_found_words (
-        \\  id INTEGER PRIMARY KEY,
-        \\  puzzle_date TEXT NOT NULL,
-        \\  word TEXT NOT NULL,
-        \\  points INTEGER NOT NULL,
-        \\  is_pangram INTEGER NOT NULL DEFAULT 0,
-        \\  found_at INTEGER NOT NULL,
-        \\  UNIQUE(puzzle_date, word),
-        \\  FOREIGN KEY(puzzle_date) REFERENCES spelling_bee_progress(puzzle_date) ON DELETE CASCADE
-        \\)
-    , .{}, .{});
-
-    try db.exec(
-        \\CREATE INDEX IF NOT EXISTS idx_spelling_bee_found_words_puzzle_date
-        \\  ON spelling_bee_found_words(puzzle_date)
     , .{}, .{});
 }
 

@@ -17,14 +17,6 @@ pub const connections = struct {
     pub const purple = Color{ .rgb = .{ 186, 129, 197 } }; // #ba81c5 - Hardest
 };
 
-// Spelling Bee colors
-pub const spelling_bee = struct {
-    pub const center = Color{ .rgb = .{ 247, 218, 33 } }; // #f7da21 - Center letter (yellow)
-    pub const outer = Color{ .rgb = .{ 230, 230, 230 } }; // #e6e6e6 - Outer letters (gray)
-    pub const found = Color{ .rgb = .{ 248, 205, 5 } }; // #f8cd05 - Found word highlight
-    pub const pangram = Color{ .rgb = .{ 247, 218, 33 } }; // #f7da21 - Pangram highlight
-};
-
 // Common UI colors
 pub const ui = struct {
     pub const text = Color.default; // Primary text - use terminal default
