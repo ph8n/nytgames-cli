@@ -95,6 +95,6 @@ Homepage: ${HOMEPAGE}
 Description: ${DESCRIPTION}
 EOF
 
-dpkg-deb --build "${tmp}/pkg" "${OUT_FILE}" >/dev/null
+# Use xz (widely supported) and force root:root ownership for packaged files.
+dpkg-deb --build --root-owner-group -Zxz "${tmp}/pkg" "${OUT_FILE}" >/dev/null
 echo "Wrote ${OUT_FILE}"
-

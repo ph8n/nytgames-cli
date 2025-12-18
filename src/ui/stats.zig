@@ -202,7 +202,7 @@ fn runWordle(
         win.hideCursor();
 
         const title = "Stats";
-        const subtitle = "h/l or ←/→: month   q/Esc: back   Ctrl+C: quit";
+        const subtitle = "h/l or ←/→: month   Esc: back   Ctrl+C: quit";
         printCentered(win, 0, title, .{ .bold = true });
         printCentered(win, 1, subtitle, .{ .fg = colors.ui.text_dim });
 
@@ -214,7 +214,7 @@ fn runWordle(
             .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
             .key_press => |k| {
                 if (keys.isCtrlC(k)) return .quit;
-                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
+                if (k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
 
                 if (k.matches(vaxis.Key.left, .{}) or k.matches('h', .{})) {
                     if (first_played) |fp| {
@@ -269,7 +269,7 @@ fn runConnections(
         win.hideCursor();
 
         const title = "Stats";
-        const subtitle = "h/l or ←/→: month   q/Esc: back   Ctrl+C: quit";
+        const subtitle = "h/l or ←/→: month   Esc: back   Ctrl+C: quit";
         printCentered(win, 0, title, .{ .bold = true });
         printCentered(win, 1, subtitle, .{ .fg = colors.ui.text_dim });
 
@@ -281,7 +281,7 @@ fn runConnections(
             .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
             .key_press => |k| {
                 if (keys.isCtrlC(k)) return .quit;
-                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
+                if (k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
 
                 if (k.matches(vaxis.Key.left, .{}) or k.matches('h', .{})) {
                     if (first_played) |fp| {
@@ -325,7 +325,7 @@ fn runWordleUnlimited(
         win.hideCursor();
 
         const title = "Stats";
-        const subtitle = "q/Esc: back   Ctrl+C: quit";
+        const subtitle = "Esc: back   Ctrl+C: quit";
         printCentered(win, 0, title, .{ .bold = true });
         printCentered(win, 1, subtitle, .{ .fg = colors.ui.text_dim });
 
@@ -337,7 +337,7 @@ fn runWordleUnlimited(
             .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
             .key_press => |k| {
                 if (keys.isCtrlC(k)) return .quit;
-                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
+                if (k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
             },
             .mouse, .mouse_leave => {},
         }
@@ -629,7 +629,7 @@ fn runStub(
         win.hideCursor();
 
         const title = "Stats";
-        const subtitle = "q/Esc: back   Ctrl+C: quit";
+        const subtitle = "Esc: back   Ctrl+C: quit";
         printCentered(win, 0, title, .{ .bold = true });
         printCentered(win, 1, subtitle, .{ .fg = colors.ui.text_dim });
 
@@ -651,7 +651,7 @@ fn runStub(
             .winsize => |ws| try vx.resize(allocator, tty.writer(), ws),
             .key_press => |k| {
                 if (keys.isCtrlC(k)) return .quit;
-                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
+                if (k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
             },
             .mouse, .mouse_leave => {},
         }

@@ -18,7 +18,7 @@ Not affiliated with The New York Times.
 This project publishes a self-contained Homebrew formula as a release asset.
 
 ```bash
-brew install --formula https://github.com/ph8n/nytgames-cli/releases/download/vX.Y.Z/nytgames-cli.rb
+brew install --formula https://github.com/ph8n/nytgames-cli/releases/latest/download/nytgames-cli.rb
 ```
 
 ### Curl (macOS + Linux)

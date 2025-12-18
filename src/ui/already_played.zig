@@ -34,7 +34,7 @@ pub fn run(
         win.clear();
         win.hideCursor();
 
-        const hint = "q/Esc: back   Enter/Space: ok   Ctrl+C: quit";
+        const hint = "Esc: back   Enter/Space: ok   Ctrl+C: quit";
 
         const body_h: u16 = if (options.mark == null) 3 else 4;
         const block_h: u16 = 2 + 1 + body_h; // title + hint + gap + body
@@ -64,7 +64,7 @@ pub fn run(
             .mouse, .mouse_leave => {},
             .key_press => |k| {
                 if (keys.isCtrlC(k)) return .quit;
-                if (k.matches('q', .{}) or k.matches(vaxis.Key.escape, .{}) or isEnterKey(k) or isSpaceKey(k)) {
+                if (k.matches(vaxis.Key.escape, .{}) or isEnterKey(k) or isSpaceKey(k)) {
                     return if (options.direct_launch) .quit else .back_to_menu;
                 }
             },

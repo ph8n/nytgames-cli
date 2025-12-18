@@ -1,6 +1,8 @@
 # Zig build artifacts
 .zig-cache/
 zig-out/
+.tmp-install/
+.zig-global-cache/
 
 # macOS
 .DS_Store

@@ -205,7 +205,7 @@ fn handleKey(
     db: *sqlite.Db,
 ) !void {
     if (ui_keys.isCtrlC(k)) return InputExit.Quit;
-    if (k.matches(vaxis.Key.escape, .{}) or k.matches('q', .{})) return InputExit.BackToMenu;
+    if (k.matches(vaxis.Key.escape, .{})) return InputExit.BackToMenu;
 
     if (state.phase == .finished) {
         if (isEnterKey(k) or k.matches(' ', .{})) return InputExit.BackToMenu;
@@ -695,7 +695,7 @@ fn render(vx: *vaxis.Vaxis, state: *GameState, direct_launch: bool) !void {
     printCentered(
         win,
         layout.header_y + 1,
-        "Space: select  Enter: submit  s: shuffle  d: deselect  q/Esc: menu  Ctrl+C: quit",
+        "Space: select  Enter: submit  s: shuffle  d: deselect  Esc: menu  Ctrl+C: quit",
         .{ .fg = colors.ui.text_dim },
     );
 

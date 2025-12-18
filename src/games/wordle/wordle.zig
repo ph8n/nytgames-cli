@@ -95,7 +95,7 @@ pub fn run(
             .mouse, .mouse_leave => {},
             .key_press => |k| {
                 if (ui_keys.isCtrlC(k)) return .quit;
-                if (k.matches(vaxis.Key.escape, .{}) or k.matches('q', .{})) return .back_to_menu;
+                if (k.matches(vaxis.Key.escape, .{})) return .back_to_menu;
 
                 if (state.phase == .finished) {
                     if (isEnterKey(k) or k.matches(' ', .{})) {
@@ -394,8 +394,8 @@ fn render(vx: *vaxis.Vaxis, state: *GameState, msg: *StatusMessage, direct_launc
 
     _ = direct_launch;
     const title = switch (mode) {
-        .daily => "Wordle  (q/Esc: menu  Ctrl+C: quit)",
-        .unlimited => "Wordle Unlimited  (q/Esc: menu  Ctrl+C: quit)",
+        .daily => "Wordle  (Esc: menu  Ctrl+C: quit)",
+        .unlimited => "Wordle Unlimited  (Esc: menu  Ctrl+C: quit)",
     };
 
     const tile_w: u16 = 5;
