@@ -3,7 +3,6 @@ set -euo pipefail
 
 REPO_DEFAULT="ph8n/nytgames-cli"
 REPO="${NYTGAMES_CLI_REPO:-$REPO_DEFAULT}"
-CHANNEL="${NYTGAMES_CLI_CHANNEL:-}"
 VERSION="${NYTGAMES_CLI_VERSION:-}"
 INSTALL_DIR="${NYTGAMES_CLI_INSTALL_DIR:-}"
 
@@ -18,7 +17,6 @@ Usage:
 
 Env:
   NYTGAMES_CLI_REPO         (default: ${REPO_DEFAULT})
-  NYTGAMES_CLI_CHANNEL      (default: latest; set to "main" for CI builds)
   NYTGAMES_CLI_VERSION      (default: latest)
   NYTGAMES_CLI_INSTALL_DIR  (default: ~/.local/bin)
 EOF
@@ -36,10 +34,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --version)
       VERSION="$2"
-      shift 2
-      ;;
-    --channel)
-      CHANNEL="$2"
       shift 2
       ;;
     --dir|--install-dir)
@@ -79,33 +73,20 @@ if [[ -z "$INSTALL_DIR" ]]; then
   INSTALL_DIR="${HOME}/.local/bin"
 fi
 
-if [[ -n "$CHANNEL" ]]; then
-  case "$CHANNEL" in
-    main|nightly)
-      tag="main"
-      VERSION="main"
-      ;;
-    *)
-      echo "unsupported channel: ${CHANNEL}" >&2
-      exit 1
-      ;;
-  esac
-else
-  VERSION="${VERSION#v}"
-  if [[ -z "$VERSION" ]]; then
-    tag="$(
-      curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-        | sed -nE 's/^[[:space:]]*"tag_name":[[:space:]]*"([^"]+)".*$/\1/p' \
-        | head -n 1
-    )"
-    if [[ -z "$tag" ]]; then
-      echo "failed to resolve latest version from GitHub for ${REPO}" >&2
-      exit 1
-    fi
-    VERSION="${tag#v}"
-  else
-    tag="v${VERSION}"
+VERSION="${VERSION#v}"
+if [[ -z "$VERSION" ]]; then
+  tag="$(
+    curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+      | sed -nE 's/^[[:space:]]*"tag_name":[[:space:]]*"([^"]+)".*$/\1/p' \
+      | head -n 1
+  )"
+  if [[ -z "$tag" ]]; then
+    echo "failed to resolve latest version from GitHub for ${REPO}" >&2
+    exit 1
   fi
+  VERSION="${tag#v}"
+else
+  tag="v${VERSION}"
 fi
 
 asset="nytgames-cli_${VERSION}_${os}_${arch}.tar.gz"

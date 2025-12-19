@@ -1,6 +1,5 @@
 param(
   [string]$Repo = $env:NYTGAMES_CLI_REPO,
-  [string]$Channel = $env:NYTGAMES_CLI_CHANNEL,
   [string]$Version = $env:NYTGAMES_CLI_VERSION,
   [string]$InstallDir = $env:NYTGAMES_CLI_INSTALL_DIR
 )
@@ -28,13 +27,7 @@ switch ($arch) {
   default { throw "unsupported architecture: $arch" }
 }
 
-if (-not [string]::IsNullOrWhiteSpace($Channel)) {
-  switch ($Channel) {
-    "main" { $Version = "main" }
-    "nightly" { $Version = "main" }
-    default { throw "unsupported channel: $Channel" }
-  }
-} elseif ([string]::IsNullOrWhiteSpace($Version)) {
+if ([string]::IsNullOrWhiteSpace($Version)) {
   $release = Invoke-RestMethod -Headers $headers "https://api.github.com/repos/$Repo/releases/latest"
   $tag = $release.tag_name
   if (-not $tag) {
@@ -46,11 +39,7 @@ if (-not [string]::IsNullOrWhiteSpace($Channel)) {
 }
 
 $asset = "nytgames-cli_${Version}_windows_${arch}.zip"
-if ($Version -eq "main") {
-  $baseUrl = "https://github.com/$Repo/releases/download/main"
-} else {
-  $baseUrl = "https://github.com/$Repo/releases/download/v$Version"
-}
+$baseUrl = "https://github.com/$Repo/releases/download/v$Version"
 $url = "$baseUrl/$asset"
 $checksumsUrl = "$baseUrl/checksums.txt"
 
