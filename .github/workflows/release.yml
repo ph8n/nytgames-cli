@@ -35,10 +35,6 @@ jobs:
             target: aarch64-macos
             dist_os: darwin
             dist_arch: arm64
-          - runner: windows-latest
-            target: x86_64-windows
-            dist_os: windows
-            dist_arch: amd64
 
     runs-on: ${{ matrix.runner }}
     steps:
@@ -74,22 +70,6 @@ jobs:
           archive="nytgames-cli_${version}_${{ matrix.dist_os }}_${{ matrix.dist_arch }}.tar.gz"
           tar -C dist -czf "${archive}" nytgames LICENSE README.md
           echo "built ${archive}"
-
-      - name: Build archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = "${{ steps.meta.outputs.version }}"
-          zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.target }} -Dversion="$version"
-
-          New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Copy-Item zig-out/bin/nytgames.exe dist/nytgames.exe
-          Copy-Item LICENSE dist/LICENSE
-          Copy-Item README.md dist/README.md
-
-          $archive = "nytgames-cli_${version}_${{ matrix.dist_os }}_${{ matrix.dist_arch }}.zip"
-          Compress-Archive -Path dist/nytgames.exe, dist/LICENSE, dist/README.md -DestinationPath $archive
-          Write-Host "built $archive"
 
       - uses: actions/upload-artifact@v4
         with:
