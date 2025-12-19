@@ -11,6 +11,8 @@ Play NYT Games in your terminal, with local stats tracking.
 
 Not affiliated with The New York Times.
 
+If a game you want isn't here, please contribute and add it to the list for nytgames-cli.
+
 ## Install
 
 ### One-line installer (macOS + Linux)
