@@ -45,21 +45,24 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
-    // Run step
-    const run_step = b.step("run", "Run the app");
-    const run_cmd = b.addRunArtifact(exe);
-    run_step.dependOn(&run_cmd.step);
-    run_cmd.step.dependOn(b.getInstallStep());
+    const is_windows = target.result.os.tag == .windows;
+    if (!is_windows) {
+        // Run step (disabled on Windows due to Zig run-step path assertions)
+        const run_step = b.step("run", "Run the app");
+        const run_cmd = b.addRunArtifact(exe);
+        run_step.dependOn(&run_cmd.step);
+        run_cmd.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
+        if (b.args) |args| {
+            run_cmd.addArgs(args);
+        }
+
+        // Test step
+        const exe_tests = b.addTest(.{
+            .root_module = exe.root_module,
+        });
+        const run_exe_tests = b.addRunArtifact(exe_tests);
+        const test_step = b.step("test", "Run tests");
+        test_step.dependOn(&run_exe_tests.step);
     }
-
-    // Test step
-    const exe_tests = b.addTest(.{
-        .root_module = exe.root_module,
-    });
-    const run_exe_tests = b.addRunArtifact(exe_tests);
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_exe_tests.step);
 }
