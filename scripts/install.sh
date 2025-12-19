@@ -77,7 +77,7 @@ VERSION="${VERSION#v}"
 if [[ -z "$VERSION" ]]; then
   tag="$(
     curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-      | sed -nE 's/^[[:space:]]*"tag_name":[[:space:]]*"([^"]+)".*$/\\1/p' \
+      | sed -nE 's/^[[:space:]]*"tag_name":[[:space:]]*"([^"]+)".*$/\1/p' \
       | head -n 1
   )"
   if [[ -z "$tag" ]]; then
@@ -85,10 +85,12 @@ if [[ -z "$VERSION" ]]; then
     exit 1
   fi
   VERSION="${tag#v}"
+else
+  tag="v${VERSION}"
 fi
 
 asset="nytgames-cli_${VERSION}_${os}_${arch}.tar.gz"
-base_url="https://github.com/${REPO}/releases/download/v${VERSION}"
+base_url="https://github.com/${REPO}/releases/download/${tag}"
 url="${base_url}/${asset}"
 checksums_url="${base_url}/checksums.txt"
 
@@ -138,4 +140,3 @@ if ! command -v "${BIN_NAME}" >/dev/null 2>&1; then
   echo "Note: ${INSTALL_DIR} is not on your PATH. Add it, e.g.:" >&2
   echo "  export PATH=\"${INSTALL_DIR}:\$PATH\"" >&2
 fi
-
