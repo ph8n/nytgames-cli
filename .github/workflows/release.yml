@@ -126,7 +126,7 @@ jobs:
           ./scripts/build-rpm.sh --version "${version}" --arch amd64 --tar "dist/nytgames-cli_${version}_linux_amd64.tar.gz" --out "dist/nytgames-cli_${version}_linux_amd64.rpm"
 
           # Final checksums include all artifacts (excluding checksums.txt itself).
-          (cd dist && sha256sum nytgames-cli_*.tar.gz nytgames-cli_*.zip nytgames-cli_*.deb nytgames-cli_*.rpm nytgames-cli.rb > checksums.txt)
+          (cd dist && sha256sum nytgames-cli_*.tar.gz nytgames-cli_*.deb nytgames-cli_*.rpm nytgames-cli.rb > checksums.txt)
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
@@ -136,7 +136,6 @@ jobs:
           generate_release_notes: true
           files: |
             dist/nytgames-cli_*.tar.gz
-            dist/nytgames-cli_*.zip
             dist/nytgames-cli_*.deb
             dist/nytgames-cli_*.rpm
             dist/nytgames-cli.rb
