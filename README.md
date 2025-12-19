@@ -26,6 +26,8 @@ curl -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/inst
 Options:
 - Pin a version:
   - `curl -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/install.sh | NYTGAMES_CLI_VERSION=X.Y.Z bash`
+- Install latest main build (CI):
+  - `curl -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/install.sh | NYTGAMES_CLI_CHANNEL=main bash`
 - Choose install dir: `NYTGAMES_CLI_INSTALL_DIR=~/.local/bin`
 
 ### One-line installer (Windows PowerShell)
@@ -41,6 +43,8 @@ Windows builds are currently x64 only.
 Options:
 - Pin a version:
   - `$env:NYTGAMES_CLI_VERSION="X.Y.Z"; curl.exe -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/install.ps1 | powershell -NoProfile -ExecutionPolicy Bypass -Command -`
+- Install latest main build (CI):
+  - `$env:NYTGAMES_CLI_CHANNEL="main"; curl.exe -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/install.ps1 | powershell -NoProfile -ExecutionPolicy Bypass -Command -`
 - Choose install dir: `$env:NYTGAMES_CLI_INSTALL_DIR="C:\\Users\\You\\bin"`
 
 ### Linux packages (optional)
