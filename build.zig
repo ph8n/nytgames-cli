@@ -45,9 +45,10 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
-    const is_windows = target.result.os.tag == .windows;
-    if (!is_windows) {
-        // Run step (disabled on Windows due to Zig run-step path assertions)
+    const builtin = @import("builtin");
+    const is_windows_host = builtin.os.tag == .windows;
+    if (!is_windows_host) {
+        // Run step (disabled on Windows hosts due to Zig run-step path assertions)
         const run_step = b.step("run", "Run the app");
         const run_cmd = b.addRunArtifact(exe);
         run_step.dependOn(&run_cmd.step);
