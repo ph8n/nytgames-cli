@@ -1066,12 +1066,15 @@ fn computeAllQuickStats(allocator: std.mem.Allocator, storage: *storage_db.Stora
 
 fn localHourWday(ts: i64) ?struct { hour: u8, wday: u8 } {
     if (ts < 0) return null;
-    if (builtin.os.tag == .windows) return null;
 
     var t: ctime.time_t = @intCast(ts);
     var tm: ctime.tm = undefined;
-    const tm_ptr = ctime.localtime_r(&t, &tm);
-    if (tm_ptr == null) return null;
+    if (builtin.os.tag == .windows) {
+        if (ctime.localtime_s(&tm, &t) != 0) return null;
+    } else {
+        const tm_ptr = ctime.localtime_r(&t, &tm);
+        if (tm_ptr == null) return null;
+    }
 
     if (tm.tm_hour < 0 or tm.tm_hour > 23) return null;
     if (tm.tm_wday < 0 or tm.tm_wday > 6) return null;

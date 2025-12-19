@@ -89,14 +89,14 @@ pub fn todayUtc() error{NegativeTimestamp}!Date {
 pub fn localDateFromUnixTimestampSeconds(timestamp_seconds: i64) error{NegativeTimestamp}!Date {
     if (timestamp_seconds < 0) return error.NegativeTimestamp;
 
-    if (builtin.os.tag == .windows) {
-        @compileError("localDateFromUnixTimestampSeconds is not implemented for Windows yet.");
-    }
-
     var t: c.time_t = @intCast(timestamp_seconds);
     var tm: c.tm = undefined;
-    const tm_ptr = c.localtime_r(&t, &tm);
-    if (tm_ptr == null) return error.NegativeTimestamp;
+    if (builtin.os.tag == .windows) {
+        if (c.localtime_s(&tm, &t) != 0) return error.NegativeTimestamp;
+    } else {
+        const tm_ptr = c.localtime_r(&t, &tm);
+        if (tm_ptr == null) return error.NegativeTimestamp;
+    }
 
     const year: i32 = tm.tm_year + 1900;
     if (year < 0) return error.NegativeTimestamp;

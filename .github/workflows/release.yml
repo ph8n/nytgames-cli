@@ -35,6 +35,10 @@ jobs:
             target: aarch64-macos
             dist_os: darwin
             dist_arch: arm64
+          - runner: windows-latest
+            target: x86_64-windows
+            dist_os: windows
+            dist_arch: amd64
 
     runs-on: ${{ matrix.runner }}
     steps:
@@ -53,7 +57,8 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build tarball
+      - name: Build archive (macOS/Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -65,14 +70,30 @@ jobs:
           cp LICENSE dist/LICENSE
           cp README.md dist/README.md
 
-          tarball="nytgames-cli_${version}_${{ matrix.dist_os }}_${{ matrix.dist_arch }}.tar.gz"
-          tar -C dist -czf "${tarball}" nytgames LICENSE README.md
-          echo "built ${tarball}"
+          archive="nytgames-cli_${version}_${{ matrix.dist_os }}_${{ matrix.dist_arch }}.tar.gz"
+          tar -C dist -czf "${archive}" nytgames LICENSE README.md
+          echo "built ${archive}"
+
+      - name: Build archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.meta.outputs.version }}"
+          zig build -Doptimize=ReleaseSafe -Dtarget=${{ matrix.target }} -Dversion="$version"
+
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item zig-out/bin/nytgames.exe dist/nytgames.exe
+          Copy-Item LICENSE dist/LICENSE
+          Copy-Item README.md dist/README.md
+
+          $archive = "nytgames-cli_${version}_${{ matrix.dist_os }}_${{ matrix.dist_arch }}.zip"
+          Compress-Archive -Path dist/nytgames.exe, dist/LICENSE, dist/README.md -DestinationPath $archive
+          Write-Host "built $archive"
 
       - uses: actions/upload-artifact@v4
         with:
           name: tarballs-${{ matrix.dist_os }}-${{ matrix.dist_arch }}
-          path: nytgames-cli_*.tar.gz
+          path: nytgames-cli_*
           if-no-files-found: error
 
   publish:
@@ -124,7 +145,7 @@ jobs:
           ./scripts/build-rpm.sh --version "${version}" --arch amd64 --tar "dist/nytgames-cli_${version}_linux_amd64.tar.gz" --out "dist/nytgames-cli_${version}_linux_amd64.rpm"
 
           # Final checksums include all artifacts (excluding checksums.txt itself).
-          (cd dist && sha256sum nytgames-cli_*.tar.gz nytgames-cli_*.deb nytgames-cli_*.rpm nytgames-cli.rb > checksums.txt)
+          (cd dist && sha256sum nytgames-cli_*.tar.gz nytgames-cli_*.zip nytgames-cli_*.deb nytgames-cli_*.rpm nytgames-cli.rb > checksums.txt)
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
@@ -134,6 +155,7 @@ jobs:
           generate_release_notes: true
           files: |
             dist/nytgames-cli_*.tar.gz
+            dist/nytgames-cli_*.zip
             dist/nytgames-cli_*.deb
             dist/nytgames-cli_*.rpm
             dist/nytgames-cli.rb

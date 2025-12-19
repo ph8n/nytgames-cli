@@ -13,15 +13,7 @@ Not affiliated with The New York Times.
 
 ## Install
 
-### Homebrew (macOS + Linux)
-
-This project publishes a self-contained Homebrew formula as a release asset.
-
-```bash
-brew install --formula https://github.com/ph8n/nytgames-cli/releases/latest/download/nytgames-cli.rb
-```
-
-### Curl (macOS + Linux)
+### One-line installer (macOS + Linux)
 
 Installs the prebuilt binary from GitHub Releases.
 
@@ -34,7 +26,22 @@ Options:
   - `curl -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/install.sh | NYTGAMES_CLI_VERSION=X.Y.Z bash`
 - Choose install dir: `NYTGAMES_CLI_INSTALL_DIR=~/.local/bin`
 
-### Linux packages
+### One-line installer (Windows PowerShell)
+
+Installs the prebuilt binary from GitHub Releases.
+
+```powershell
+curl.exe -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/install.ps1 | powershell -NoProfile -ExecutionPolicy Bypass -Command -
+```
+
+Windows builds are currently x64 only.
+
+Options:
+- Pin a version:
+  - `$env:NYTGAMES_CLI_VERSION="X.Y.Z"; curl.exe -fsSL https://raw.githubusercontent.com/ph8n/nytgames-cli/main/scripts/install.ps1 | powershell -NoProfile -ExecutionPolicy Bypass -Command -`
+- Choose install dir: `$env:NYTGAMES_CLI_INSTALL_DIR="C:\\Users\\You\\bin"`
+
+### Linux packages (optional)
 
 Download the package from the GitHub Release page:
 - Debian/Ubuntu (`.deb`): `sudo apt install ./nytgames-cli_X.Y.Z_linux_amd64.deb`
